@@ -1,6 +1,6 @@
 use std::fmt::Write as _;
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use payrail_core::PaymentError;
 use secrecy::{ExposeSecret, SecretString};
 use sha2::Sha256;

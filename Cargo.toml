@@ -21,20 +21,20 @@ homepage = "https://github.com/boniface/payrail"
 async-trait = "0.1"
 axum = "0.8"
 base64 = "0.22"
-hmac = "0.12"
-http = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+hmac = "0.13"
+http = "1.4"
+reqwest = { version = "0.13", default-features = false, features = ["form", "json"] }
 secrecy = "0.10"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-sha2 = "0.10"
-subtle = "2"
-thiserror = "2"
+serde_json = "1.0"
+sha2 = "0.11"
+subtle = "2.6"
+thiserror = "2.0"
 time = { version = "0.3", features = ["formatting", "parsing", "serde"] }
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.52", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 tracing = "0.1"
-url = { version = "2", features = ["serde"] }
-uuid = { version = "1", features = ["v4", "serde"] }
+url = { version = "2.5", features = ["serde"] }
+uuid = { version = "1.23", features = ["v4", "serde"] }
 wiremock = "0.6"
 
 [profile.release]

@@ -22,7 +22,7 @@ paypal = ["dep:payrail-paypal"]
 lipila = ["dep:payrail-lipila", "mobile-money"]
 mobile-money = ["dep:payrail-mobile-money"]
 all-providers = ["stripe", "paypal", "lipila", "mobile-money"]
-rustls = ["reqwest/rustls-tls"]
+rustls = ["reqwest/rustls"]
 native-tls = ["reqwest/native-tls"]
 
 [dependencies]

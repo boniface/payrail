@@ -1,5 +1,5 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use payrail_core::PaymentError;
 use secrecy::{ExposeSecret, SecretString};
 use sha2::Sha256;

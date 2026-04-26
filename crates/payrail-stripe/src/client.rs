@@ -318,7 +318,7 @@ impl PaymentConnector for StripeConnector {
 
 #[cfg(test)]
 mod tests {
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     use payrail_core::{Money, PaymentMethod};
     use secrecy::SecretString;
     use serde_json::json;

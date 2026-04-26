@@ -1,4 +1,4 @@
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use payrail_core::{
     IdempotencyKey, Money, PaymentConnector, PaymentError, PaymentMethod, PaymentProvider,
     RefundRequest, WebhookRequest,

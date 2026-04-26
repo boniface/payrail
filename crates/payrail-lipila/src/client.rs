@@ -198,7 +198,7 @@ fn header<'a>(request: &'a WebhookRequest<'_>, name: &str) -> Result<&'a str, Pa
 #[cfg(test)]
 mod tests {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     use payrail_core::{Money, PaymentMethod};
     use secrecy::SecretString;
     use serde_json::json;
