@@ -21,7 +21,7 @@ homepage = "https://github.com/boniface/payrail"
 async-trait = "0.1"
 axum = "0.8"
 base64 = "0.22"
-hmac = "0.12"
+hmac = "0.13"
 http = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 secrecy = "0.10"
