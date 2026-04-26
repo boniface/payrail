@@ -157,7 +157,7 @@ integration tests for provider operations.
 
 Use the provider contribution template:
 
-- [docs/provider-extension-template.md](docs/provider-extension-template.md)
+- [docs/provider-extension-template.md](https://github.com/boniface/payrail/blob/main/docs/provider-extension-template.md)
 
 ## Security Posture
 

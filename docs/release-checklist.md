@@ -21,6 +21,22 @@ Before running `publish`, update and commit:
 - `[workspace.package] version` in `Cargo.toml`.
 - Changelog or release notes, when applicable.
 
+## Release Notes
+
+GitHub release notes are generated automatically by the `Release` workflow. PRs should be labeled so
+the generated notes are grouped by `.github/release.yml` categories:
+
+- `breaking-change` or `semver-major` for breaking API or behavior changes.
+- `security` for security posture, vulnerability, webhook, secret-handling, or compliance changes.
+- Provider labels such as `provider`, `stripe`, `paypal`, `lipila`, `mobile-money`, or `crypto` for
+  payment-rail changes.
+- `feature`, `enhancement`, `bug`, `fix`, `documentation`, `docs`, `ci`, `release`, or
+  `dependencies` for routine changes.
+- `ignore-for-release` for PRs that should not appear in release notes.
+
+Use the optional `release_summary` workflow input for a short human-written overview. GitHub appends
+the categorized generated notes after that summary.
+
 ## Accidental Internal Crate Releases
 
 The old internal package names are no longer workspace members or repository packages. If an

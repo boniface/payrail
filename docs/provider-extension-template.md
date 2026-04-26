@@ -397,6 +397,20 @@ For a new fuzz target, also run:
 make fuzz-smoke
 ```
 
+## Release Note Labels
+
+Every PR should include at least one release-note label so GitHub can generate useful categorized
+release notes:
+
+- Use `breaking-change` or `semver-major` for breaking API or behavior changes.
+- Use `security` for security posture, vulnerability, webhook, secret-handling, or compliance
+  changes.
+- Use provider labels such as `provider`, `stripe`, `paypal`, `lipila`, `mobile-money`, or `crypto`
+  for payment-rail changes.
+- Use `feature`, `enhancement`, `bug`, `fix`, `documentation`, `docs`, `ci`, `release`, or
+  `dependencies` for routine changes.
+- Use `ignore-for-release` only when a PR should be excluded from generated release notes.
+
 ## PR Checklist
 
 - [ ] New provider module is isolated from unrelated providers.
@@ -413,6 +427,7 @@ make fuzz-smoke
 - [ ] Coverage remains above the workspace release gate.
 - [ ] `make security` passes.
 - [ ] README documents environment variables, sandbox behavior, limitations, and examples.
+- [ ] PR has at least one release-note label that matches `.github/release.yml`.
 
 ## Documentation Requirements
 

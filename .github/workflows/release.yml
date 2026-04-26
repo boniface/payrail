@@ -15,6 +15,10 @@ on:
         options:
           - dry-run
           - publish
+      release_summary:
+        description: "Optional short summary prepended to generated GitHub release notes"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -145,4 +149,5 @@ jobs:
           tag_name: v${{ inputs.version }}
           name: PayRail ${{ inputs.version }}
           target_commitish: ${{ github.sha }}
+          body: ${{ inputs.release_summary }}
           generate_release_notes: true
