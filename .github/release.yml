@@ -1,0 +1,44 @@
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+    authors:
+      - dependabot[bot]
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking-change
+        - semver-major
+    - title: Security
+      labels:
+        - security
+    - title: Provider Changes
+      labels:
+        - provider
+        - stripe
+        - paypal
+        - lipila
+        - mobile-money
+        - crypto
+    - title: Features
+      labels:
+        - enhancement
+        - feature
+    - title: Fixes
+      labels:
+        - bug
+        - fix
+    - title: Documentation
+      labels:
+        - documentation
+        - docs
+    - title: CI and Release
+      labels:
+        - ci
+        - release
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Other Changes
+      labels:
+        - "*"
