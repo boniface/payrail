@@ -1,0 +1,30 @@
+title = "PayRail gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "stripe-secret-key"
+description = "Stripe secret key"
+regex = '''sk_(live|test)_[A-Za-z0-9]{16,}'''
+tags = ["key", "stripe"]
+
+[[rules]]
+id = "paypal-access-token"
+description = "PayPal access token"
+regex = '''A21AA[A-Za-z0-9_\-]{20,}'''
+tags = ["token", "paypal"]
+
+[[rules]]
+id = "generic-webhook-secret"
+description = "Webhook secret assignment"
+regex = '''(?i)(webhook|callback)[_\-]?(secret|token)\s*[:=]\s*['"][^'"]{12,}['"]'''
+tags = ["secret", "webhook"]
+
+[allowlist]
+description = "Allow documented placeholders"
+regexes = [
+    '''sk_test_xxx''',
+    '''PAYPAL_CLIENT_SECRET''',
+    '''LIPILA_WEBHOOK_SECRET''',
+]

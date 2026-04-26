@@ -1,0 +1,41 @@
+[package]
+name = "payrail"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Provider-neutral Rust payments facade for Stripe, PayPal, and Mobile Money"
+documentation = "https://docs.rs/payrail"
+readme = "README.md"
+keywords = ["payments", "stripe", "paypal", "mobile-money", "checkout"]
+categories = ["api-bindings", "web-programming"]
+
+[package.metadata.cargo-machete]
+ignored = ["reqwest"]
+
+[features]
+default = ["rustls"]
+stripe = ["dep:payrail-stripe"]
+paypal = ["dep:payrail-paypal"]
+lipila = ["dep:payrail-lipila", "mobile-money"]
+mobile-money = ["dep:payrail-mobile-money"]
+all-providers = ["stripe", "paypal", "lipila", "mobile-money"]
+rustls = ["reqwest/rustls-tls"]
+native-tls = ["reqwest/native-tls"]
+
+[dependencies]
+async-trait.workspace = true
+payrail-core = { path = "../payrail-core", version = "0.1.0" }
+payrail-lipila = { path = "../payrail-lipila", version = "0.1.0", optional = true }
+payrail-mobile-money = { path = "../payrail-mobile-money", version = "0.1.0", optional = true }
+payrail-paypal = { path = "../payrail-paypal", version = "0.1.0", optional = true }
+payrail-stripe = { path = "../payrail-stripe", version = "0.1.0", optional = true }
+reqwest.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+http.workspace = true
+secrecy.workspace = true
+tokio.workspace = true

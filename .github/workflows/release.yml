@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without a leading v, for example 0.1.0"
+        required: true
+        type: string
+      mode:
+        description: "Run validation only, or publish crates and create the GitHub release"
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - publish
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RELEASE_MODE: ${{ inputs.mode }}
+  RELEASE_VERSION: ${{ inputs.version }}
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@cargo-audit
+      - uses: taiki-e/install-action@cargo-machete
+      - name: Validate version input
+        run: |
+          case "$RELEASE_VERSION" in
+            v*)
+              echo "Use a plain semver version like 0.1.0, not $RELEASE_VERSION."
+              exit 1
+              ;;
+            ""|*[!0-9A-Za-z.+-]*)
+              echo "Invalid version: $RELEASE_VERSION"
+              exit 1
+              ;;
+          esac
+
+          if ! printf '%s\n' "$RELEASE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'; then
+            echo "Version must be valid semver, for example 0.1.0 or 1.2.3-rc.1."
+            exit 1
+          fi
+
+          if [ "$RELEASE_MODE" = "publish" ] && [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "Publish releases must be run from main. Current ref: $GITHUB_REF_NAME."
+            exit 1
+          fi
+
+          if [ "$RELEASE_MODE" = "publish" ] && git rev-parse -q --verify "refs/tags/v$RELEASE_VERSION" >/dev/null; then
+            echo "Tag v$RELEASE_VERSION already exists."
+            exit 1
+          fi
+
+          if ! grep -q "^version = \"$RELEASE_VERSION\"$" Cargo.toml; then
+            echo "Cargo.toml [workspace.package] version must be $RELEASE_VERSION."
+            exit 1
+          fi
+
+          mismatches=$(
+            grep -R -nE 'payrail(-[a-z-]+)? = \{.*version = "' crates/*/Cargo.toml \
+              | grep -v "version = \"$RELEASE_VERSION\"" || true
+          )
+          if [ -n "$mismatches" ]; then
+            echo "Internal payrail dependency versions must match $RELEASE_VERSION:"
+            echo "$mismatches"
+            exit 1
+          fi
+      - run: make fmt-check
+      - run: make check
+      - run: make lint
+      - run: make test
+      - run: make examples
+      - run: make doc
+      - run: make coverage
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+      - run: make audit
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: make machete
+      - run: make fuzz-check
+      - run: make package
+
+  dry-run:
+    name: Dry Run Summary
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ inputs.mode == 'dry-run' }}
+    steps:
+      - run: |
+          echo "Release dry run completed for $RELEASE_VERSION."
+          echo "No crates were published and no GitHub release was created."
+
+  publish-crates:
+    name: Publish Crates
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ inputs.mode == 'publish' }}
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate crates.io token
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "CARGO_REGISTRY_TOKEN repository or environment secret is required."
+            exit 1
+          fi
+      - name: Publish crates in dependency order
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          publish_crate() {
+            crate="$1"
+            attempts=0
+
+            until cargo publish --dry-run -p "$crate"; do
+              attempts=$((attempts + 1))
+              if [ "$attempts" -ge 5 ]; then
+                echo "Dry-run publish failed for $crate after $attempts attempts."
+                exit 1
+              fi
+
+              echo "Waiting for crates.io index propagation before retrying $crate."
+              sleep 30
+            done
+
+            cargo publish -p "$crate"
+          }
+
+          publish_crate payrail-core
+          sleep 60
+          publish_crate payrail-stripe
+          sleep 60
+          publish_crate payrail-paypal
+          sleep 60
+          publish_crate payrail-mobile-money
+          sleep 60
+          publish_crate payrail-lipila
+          sleep 60
+          publish_crate payrail
+
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: publish-crates
+    if: ${{ inputs.mode == 'publish' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: PayRail ${{ inputs.version }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true

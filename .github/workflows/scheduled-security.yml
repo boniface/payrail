@@ -1,0 +1,50 @@
+name: Scheduled Security
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutation-and-semver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-mutants
+      - uses: taiki-e/install-action@cargo-semver-checks
+      - run: cargo mutants --workspace --timeout 60
+      - run: cargo semver-checks check-release --workspace
+
+  fuzz-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@cargo-fuzz
+      - run: cargo fuzz build core_validation
+      - run: cargo fuzz build stripe_webhook
+      - run: cargo fuzz build lipila_webhook
+      - run: cargo fuzz run core_validation -- -runs=1000
+      - run: cargo fuzz run stripe_webhook -- -runs=1000
+      - run: cargo fuzz run lipila_webhook -- -runs=1000
+
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      - run: cargo miri test -p payrail-core
+
+  unused-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-machete
+      - run: cargo machete

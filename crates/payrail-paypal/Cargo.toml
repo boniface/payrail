@@ -1,0 +1,29 @@
+[package]
+name = "payrail-paypal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "PayPal connector for PayRail"
+documentation = "https://docs.rs/payrail-paypal"
+readme = "README.md"
+keywords = ["payments", "paypal", "checkout", "orders"]
+categories = ["api-bindings", "web-programming"]
+
+[dependencies]
+async-trait.workspace = true
+http.workspace = true
+payrail-core = { path = "../payrail-core", version = "0.1.0" }
+reqwest.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+wiremock.workspace = true

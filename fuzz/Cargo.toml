@@ -1,0 +1,44 @@
+[package]
+name = "payrail-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+base64 = "0.22"
+futures = "0.3"
+hmac = "0.12"
+http = "1"
+libfuzzer-sys = "0.4"
+payrail-core = { path = "../crates/payrail-core" }
+payrail-lipila = { path = "../crates/payrail-lipila" }
+payrail-stripe = { path = "../crates/payrail-stripe" }
+secrecy = "0.10"
+sha2 = "0.10"
+time = "0.3"
+
+[[bin]]
+name = "core_validation"
+path = "fuzz_targets/core_validation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "stripe_webhook"
+path = "fuzz_targets/stripe_webhook.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lipila_webhook"
+path = "fuzz_targets/lipila_webhook.rs"
+test = false
+doc = false
+bench = false

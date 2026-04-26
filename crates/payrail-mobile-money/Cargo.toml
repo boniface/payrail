@@ -1,0 +1,17 @@
+[package]
+name = "payrail-mobile-money"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Shared Mobile Money abstractions for PayRail"
+documentation = "https://docs.rs/payrail-mobile-money"
+readme = "README.md"
+keywords = ["payments", "mobile-money", "momo"]
+categories = ["api-bindings", "web-programming"]
+
+[dependencies]
+async-trait.workspace = true
+payrail-core = { path = "../payrail-core", version = "0.1.0" }

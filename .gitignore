@@ -1,0 +1,12 @@
+/target
+.env
+.env.*
+!.env.example
+coverage/
+lcov.info
+tarpaulin-report.html
+mutants.out/
+fuzz/corpus/
+fuzz/artifacts/
+fuzz/target/
+/dev-docs
