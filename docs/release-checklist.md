@@ -8,19 +8,35 @@ Releases are intentionally manual from GitHub Actions. Use the `Release` workflo
 provide the exact semver version without a leading `v`, and select one of:
 
 - `dry-run`: runs the full validation gate and packaging checks without publishing.
-- `publish`: runs the same validation gate, publishes crates to crates.io in dependency
-  order, then creates a GitHub release tagged as `v<version>`.
+- `publish`: runs the same validation gate, publishes the single public `payrail` crate to
+  crates.io, then creates a GitHub release tagged as `v<version>`.
 
 Publish mode must be run from `main` and fails if the `v<version>` tag already exists.
 The repository or `crates-io` environment must define `CARGO_REGISTRY_TOKEN` with
-permission to publish every PayRail crate. The `crates-io` environment should require
+permission to publish the `payrail` crate. The `crates-io` environment should require
 manual approval so a publish cannot happen from a single accidental click.
 
 Before running `publish`, update and commit:
 
 - `[workspace.package] version` in `Cargo.toml`.
-- Internal PayRail dependency versions in every crate `Cargo.toml`.
 - Changelog or release notes, when applicable.
+
+## Accidental Internal Crate Releases
+
+The old internal package names are no longer workspace members or repository packages. If an
+internal crate version was accidentally published, use the `Yank Internal Crates` workflow with the
+affected version, usually `0.1.0`.
+
+This yanks:
+
+- `payrail-core`
+- `payrail-stripe`
+- `payrail-paypal`
+- `payrail-mobile-money`
+- `payrail-lipila`
+
+Yanking does not delete a crate from crates.io, but it prevents new dependency resolution from
+selecting that version. Existing lockfiles can still build it.
 
 ## Required Checks
 
@@ -40,29 +56,13 @@ The GitHub `Release` workflow runs these checks before publishing. Running them 
 first shortens the feedback cycle and avoids consuming a manual release approval on
 issues that can be caught before the workflow starts.
 
-## First-Release Publish Order
+## Publish Command
 
-For the initial multi-crate release, downstream crate dry-runs may fail until their path
-dependencies already exist on crates.io. Publish or dry-run one crate at a time in dependency
-order, then rerun the remaining dry-runs after each dependency is available.
+PayRail publishes one public crate. First-party providers are internal modules behind Cargo
+features, not separately published crates.
 
 ```bash
-cargo package --allow-dirty -p payrail-core
-cargo package --allow-dirty -p payrail-stripe
-cargo package --allow-dirty -p payrail-paypal
-cargo package --allow-dirty -p payrail-mobile-money
-cargo package --allow-dirty -p payrail-lipila
 cargo package --allow-dirty -p payrail
-cargo publish --dry-run -p payrail-core
-cargo publish -p payrail-core
-cargo publish --dry-run -p payrail-stripe
-cargo publish -p payrail-stripe
-cargo publish --dry-run -p payrail-paypal
-cargo publish -p payrail-paypal
-cargo publish --dry-run -p payrail-mobile-money
-cargo publish -p payrail-mobile-money
-cargo publish --dry-run -p payrail-lipila
-cargo publish -p payrail-lipila
 cargo publish --dry-run -p payrail
 cargo publish -p payrail
 ```
@@ -75,4 +75,4 @@ cargo publish -p payrail
 - Confirm examples compile and do not contain real credentials.
 - Confirm sandbox tests are ignored by default and refuse live credentials unless explicitly enabled.
 - Confirm security review findings are resolved or documented.
-- Confirm `docs/hardening-results.md` has current mutation, fuzzing, Miri, semver, and unused-dependency results.
+- Confirm `docs/security-review.md` has current mutation, fuzzing, Miri, semver, and unused-dependency notes.

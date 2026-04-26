@@ -2,11 +2,10 @@
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures::executor::block_on;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use http::HeaderMap;
 use libfuzzer_sys::fuzz_target;
-use payrail_core::{PaymentConnector, WebhookRequest};
-use payrail_lipila::{LipilaConfig, LipilaConnector};
+use payrail::{LipilaConfig, LipilaConnector, PaymentConnector, WebhookRequest};
 use secrecy::SecretString;
 use sha2::Sha256;
 use time::OffsetDateTime;

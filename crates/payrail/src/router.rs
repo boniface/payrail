@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use payrail_core::{
+use crate::{
     CapturablePaymentConnector, CaptureRequest, CaptureResponse, CountryCode, CreatePaymentRequest,
     CryptoAsset, CryptoNetwork, PaymentConnector, PaymentError, PaymentEvent, PaymentMethod,
     PaymentProvider, PaymentSession, PaymentStatusResponse, ProviderReference, RefundRequest,
@@ -261,10 +261,6 @@ impl PaymentRouter {
                     method: "mobile_money".to_owned(),
                     country: Some(method.country.clone()),
                 }),
-            _ => Err(PaymentError::UnsupportedPaymentRoute {
-                method: "unknown".to_owned(),
-                country: None,
-            }),
         }
     }
 
@@ -313,11 +309,11 @@ impl PaymentRouter {
 
 #[cfg(test)]
 mod tests {
-    use async_trait::async_trait;
-    use http::HeaderMap;
-    use payrail_core::{
+    use crate::{
         CaptureResponse, CryptoAsset, CryptoNetwork, IdempotencyKey, Money, PaymentStatus,
     };
+    use async_trait::async_trait;
+    use http::HeaderMap;
 
     use super::*;
 
@@ -378,7 +374,7 @@ mod tests {
                 merchant_reference: None,
                 status: PaymentStatus::Succeeded,
                 amount: None,
-                event_type: payrail_core::PaymentEventType::PaymentSucceeded,
+                event_type: crate::PaymentEventType::PaymentSucceeded,
                 message: None,
             })
         }

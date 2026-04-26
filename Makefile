@@ -25,8 +25,8 @@ help:
 		'  make machete       Run unused dependency check' \
 		'  make fuzz-check    Check fuzz harness compilation' \
 		'  make fuzz-smoke    Run bounded fuzz smoke tests' \
-		'  make package       Verify package contents for all crates' \
-		'  make publish-core  Dry-run publish payrail-core' \
+		'  make package       Verify package contents for the public payrail crate' \
+		'  make publish-dry-run Dry-run publish the public payrail crate' \
 		'  make ci            Main local CI gate' \
 		'  make security      Security-focused checks' \
 		'  make all           CI + security + package'
@@ -93,11 +93,11 @@ fuzz-smoke:
 
 .PHONY: package
 package:
-	$(CARGO) package --workspace --allow-dirty
+	$(CARGO) package --allow-dirty -p payrail
 
-.PHONY: publish-core
-publish-core:
-	$(CARGO) publish --dry-run --allow-dirty -p payrail-core
+.PHONY: publish-dry-run
+publish-dry-run:
+	$(CARGO) publish --dry-run --allow-dirty -p payrail
 
 .PHONY: ci
 ci: fmt-check check lint test examples doc coverage

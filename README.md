@@ -14,17 +14,14 @@
 PayRail is a provider-neutral Rust payment library for accepting payments through Stripe, PayPal,
 crypto providers, and Mobile Money providers such as Lipila.
 
-The public API exposes PayRail payment concepts instead of provider-specific SDK types. Provider
-crates stay behind feature flags so applications only compile the payment rails they need.
+The public API exposes PayRail payment concepts instead of provider-specific SDK types. First-party
+providers are internal modules behind feature flags so applications only compile the payment rails
+they need while depending on one public crate.
 
-## Crates
+## Crate
 
-- `payrail`: facade crate for application developers.
-- `payrail-core`: provider-neutral domain types, errors, connector traits, idempotency, and webhook abstractions.
-- `payrail-stripe`: Stripe Checkout, refunds, status mapping, and webhook normalization.
-- `payrail-paypal`: PayPal OAuth and Orders API connector.
-- `payrail-mobile-money`: shared Mobile Money helpers.
-- `payrail-lipila`: Lipila Zambia Mobile Money connector.
+`payrail` is the only public crate. It contains provider-neutral domain types, connector traits,
+idempotency, webhook abstractions, and first-party providers behind Cargo features.
 
 Planned extension points include additional Mobile Money providers, Mobile Money aggregators, and
 crypto providers such as Circle, Coinbase, Bridge, and Binance.
@@ -153,8 +150,8 @@ supported can be promoted to first-class enum variants with matching routing and
 
 ## Contributing Providers
 
-Provider extensions should be implemented as separate crates unless there is a strong reason to
-extend an existing provider crate. New connectors must use `payrail-core` traits, keep secret
+Provider extensions can be implemented inside PayRail for first-party support or as separate crates
+for third-party experiments. New connectors must use PayRail connector traits, keep secret
 configuration in `secrecy::SecretString`, verify webhooks before parsing, and include mocked backend
 integration tests for provider operations.
 

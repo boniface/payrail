@@ -1,16 +1,11 @@
 [workspace]
 members = [
     "crates/payrail",
-    "crates/payrail-core",
-    "crates/payrail-lipila",
-    "crates/payrail-mobile-money",
-    "crates/payrail-paypal",
-    "crates/payrail-stripe",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"

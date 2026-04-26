@@ -1,11 +1,10 @@
 #![no_main]
 
 use futures::executor::block_on;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use http::HeaderMap;
 use libfuzzer_sys::fuzz_target;
-use payrail_core::{PaymentConnector, WebhookRequest};
-use payrail_stripe::{StripeConfig, StripeConnector};
+use payrail::{PaymentConnector, StripeConfig, StripeConnector, WebhookRequest};
 use secrecy::{ExposeSecret, SecretString};
 use sha2::Sha256;
 use time::OffsetDateTime;

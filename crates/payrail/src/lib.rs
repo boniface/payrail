@@ -4,21 +4,27 @@
 
 mod builder;
 mod client;
+mod core;
+#[cfg(any(
+    feature = "lipila",
+    feature = "mobile-money",
+    feature = "paypal",
+    feature = "stripe"
+))]
+mod providers;
 mod router;
 
 pub use builder::PayRailBuilder;
 pub use client::PayRailClient;
-pub use payrail_core::*;
+pub use core::*;
+#[cfg(any(
+    feature = "lipila",
+    feature = "mobile-money",
+    feature = "paypal",
+    feature = "stripe"
+))]
+pub use providers::*;
 pub use router::PaymentRouter;
-
-#[cfg(feature = "lipila")]
-pub use payrail_lipila::LipilaConfig;
-#[cfg(feature = "mobile-money")]
-pub use payrail_mobile_money::*;
-#[cfg(feature = "paypal")]
-pub use payrail_paypal::PayPalConfig;
-#[cfg(feature = "stripe")]
-pub use payrail_stripe::StripeConfig;
 
 /// Facade entry point.
 #[derive(Debug, Clone, Copy)]

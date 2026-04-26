@@ -8,9 +8,10 @@ Money, Flutterwave, or another Lipila-like provider.
 
 PayRail is intended to be easy to extend:
 
-- `payrail-core` owns provider-neutral types, errors, idempotency, webhooks, and connector traits.
-- Each provider lives in its own crate, for example `payrail-stripe`, `payrail-paypal`, or
-  `payrail-lipila`.
+- `payrail` owns provider-neutral types, errors, idempotency, webhooks, connector traits, and
+  first-party provider implementations.
+- First-party providers live as internal modules behind feature flags, for example `stripe`,
+  `paypal`, and `lipila`.
 - The facade crate routes provider-neutral `CreatePaymentRequest` values to configured connectors.
 - Capture is modeled as an optional capability through `CapturablePaymentConnector`.
 - Mobile Money routing is configurable with `PayRailBuilder::mobile_money_route(country, provider)`,
@@ -103,8 +104,8 @@ normalize to the provider's expected representation at the boundary.
 Add a first-class enum variant only when the asset is broadly supported or expected to be routed by
 many PayRail users. A first-class stablecoin contribution should update:
 
-- `StablecoinAsset` in `payrail-core`.
-- `CryptoAsset` in `payrail-core` when the asset can also be used with network-specific crypto
+- `StablecoinAsset` in PayRail core types.
+- `CryptoAsset` in PayRail core types when the asset can also be used with network-specific crypto
   routing.
 - The `From<&StablecoinAsset> for CryptoAsset` mapping.
 - Convenience constructors only when they improve ergonomics, for example
@@ -144,23 +145,20 @@ asset or asset+network routing unless the library later adds a provider-backed d
 - Sandbox availability:
 - Production API availability:
 
-## Crate Layout
+## Module Layout
 
-Create a separate crate unless there is a strong reason to extend an existing one:
+First-party providers should be added as feature-gated modules inside the `payrail` crate. External
+or experimental providers may live in separate crates that depend on `payrail`:
 
 ```text
-crates/payrail-provider-name/
-  Cargo.toml
-  README.md
-  src/
-    lib.rs
-    config.rs
-    client.rs
-    mapper.rs
-    models.rs
-    webhook.rs
-  tests/
-    mock_backend.rs
+crates/payrail/src/providers/provider_name/
+  mod.rs
+  config.rs
+  client.rs
+  mapper.rs
+  models.rs
+  webhook.rs
+crates/payrail/tests/provider_name_mock_backend.rs
 ```
 
 Optional modules:
@@ -172,7 +170,7 @@ Optional modules:
 - `payout.rs` for providers that separate payment acceptance from settlement/payout.
 - `callback.rs` for callback payload normalization.
 
-Keep `lib.rs` minimal: module declarations and public re-exports only.
+Keep `mod.rs` minimal: module declarations and public re-exports only.
 
 ## Required Connector Design
 
@@ -180,15 +178,15 @@ Implement `PaymentConnector` for every provider:
 
 ```rust
 #[async_trait::async_trait]
-impl payrail_core::PaymentConnector for ProviderConnector {
-    fn provider(&self) -> payrail_core::PaymentProvider {
-        payrail_core::PaymentProvider::Other("provider-name".to_owned())
+impl payrail::PaymentConnector for ProviderConnector {
+    fn provider(&self) -> payrail::PaymentProvider {
+        payrail::PaymentProvider::Other("provider-name".to_owned())
     }
 
     async fn create_payment(
         &self,
-        request: payrail_core::CreatePaymentRequest,
-    ) -> Result<payrail_core::PaymentSession, payrail_core::PaymentError> {
+        request: payrail::CreatePaymentRequest,
+    ) -> Result<payrail::PaymentSession, payrail::PaymentError> {
         // Validate supported method/country/currency.
         // Build provider request.
         // Send request with timeout and redacted tracing.
@@ -197,22 +195,22 @@ impl payrail_core::PaymentConnector for ProviderConnector {
 
     async fn get_payment_status(
         &self,
-        provider_reference: &payrail_core::ProviderReference,
-    ) -> Result<payrail_core::PaymentStatusResponse, payrail_core::PaymentError> {
+        provider_reference: &payrail::ProviderReference,
+    ) -> Result<payrail::PaymentStatusResponse, payrail::PaymentError> {
         // Return normalized status.
     }
 
     async fn refund_payment(
         &self,
-        request: payrail_core::RefundRequest,
-    ) -> Result<payrail_core::RefundResponse, payrail_core::PaymentError> {
+        request: payrail::RefundRequest,
+    ) -> Result<payrail::RefundResponse, payrail::PaymentError> {
         // Implement or return UnsupportedOperation.
     }
 
     async fn parse_webhook(
         &self,
-        request: payrail_core::WebhookRequest<'_>,
-    ) -> Result<payrail_core::PaymentEvent, payrail_core::PaymentError> {
+        request: payrail::WebhookRequest<'_>,
+    ) -> Result<payrail::PaymentEvent, payrail::PaymentError> {
         // Verify signature before parsing whenever provider supports signatures.
     }
 }
@@ -357,7 +355,8 @@ Unit tests:
 - Idempotency header behavior.
 - Secret redaction behavior.
 
-Mocked backend integration tests under `tests/mock_backend.rs`:
+Mocked backend integration tests under a provider-specific file such as
+`crates/payrail/tests/provider_name_mock_backend.rs`:
 
 - Successful create payment/collection.
 - Status lookup.
@@ -400,8 +399,8 @@ make fuzz-smoke
 
 ## PR Checklist
 
-- [ ] New provider crate is isolated from unrelated providers.
-- [ ] `lib.rs` only declares modules and re-exports public API.
+- [ ] New provider module is isolated from unrelated providers.
+- [ ] `mod.rs` only declares modules and re-exports public API.
 - [ ] Config secrets use `SecretString`.
 - [ ] No secret-bearing config derives `Serialize`.
 - [ ] HTTP client has a configurable timeout.

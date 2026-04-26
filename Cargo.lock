@@ -1060,100 +1060,25 @@ dependencies = [
 
 [[package]]
 name = "payrail"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "axum",
- "http",
- "payrail-core",
- "payrail-lipila",
- "payrail-mobile-money",
- "payrail-paypal",
- "payrail-stripe",
- "reqwest",
- "secrecy",
- "tokio",
-]
-
-[[package]]
-name = "payrail-core"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "http",
- "reqwest",
- "serde_json",
- "thiserror 2.0.18",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "payrail-lipila"
-version = "0.1.0"
-dependencies = [
- "async-trait",
  "base64",
  "hmac",
  "http",
- "payrail-core",
  "reqwest",
  "secrecy",
  "serde",
  "serde_json",
  "sha2",
  "subtle",
+ "thiserror 2.0.18",
  "time",
  "tokio",
  "tracing",
  "url",
- "wiremock",
-]
-
-[[package]]
-name = "payrail-mobile-money"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "payrail-core",
-]
-
-[[package]]
-name = "payrail-paypal"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "http",
- "payrail-core",
- "reqwest",
- "secrecy",
- "serde",
- "serde_json",
- "time",
- "tokio",
- "tracing",
- "url",
- "wiremock",
-]
-
-[[package]]
-name = "payrail-stripe"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "hmac",
- "http",
- "payrail-core",
- "reqwest",
- "secrecy",
- "serde",
- "serde_json",
- "sha2",
- "subtle",
- "time",
- "tokio",
- "tracing",
- "url",
+ "uuid",
  "wiremock",
 ]
 

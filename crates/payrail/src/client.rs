@@ -1,4 +1,4 @@
-use payrail_core::{
+use crate::{
     CaptureRequest, CaptureResponse, CreatePaymentRequest, PaymentError, PaymentEvent,
     PaymentProvider, PaymentSession, PaymentStatusResponse, ProviderReference, RefundRequest,
     RefundResponse, WebhookRequest,
@@ -89,12 +89,12 @@ impl PayRailClient {
 mod tests {
     use std::sync::Arc;
 
-    use async_trait::async_trait;
-    use http::HeaderMap;
-    use payrail_core::{
+    use crate::{
         CaptureResponse, IdempotencyKey, MerchantReference, PaymentConnector, PaymentEventType,
         PaymentStatus,
     };
+    use async_trait::async_trait;
+    use http::HeaderMap;
 
     use super::*;
 
@@ -160,7 +160,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl payrail_core::CapturablePaymentConnector for ClientConnector {
+    impl crate::CapturablePaymentConnector for ClientConnector {
         async fn capture_payment(
             &self,
             request: CaptureRequest,
@@ -178,16 +178,16 @@ mod tests {
         let connector = Arc::new(ClientConnector);
         let mut router = PaymentRouter::new();
         let payment_connector: Arc<dyn PaymentConnector> = connector.clone();
-        let capturable: Arc<dyn payrail_core::CapturablePaymentConnector> = connector;
+        let capturable: Arc<dyn crate::CapturablePaymentConnector> = connector;
         router.register_capturable(payment_connector, capturable);
         let client = PayRailClient::new(router);
         let provider_reference =
             ProviderReference::new("provider-ref").expect("reference should be valid");
         let request = CreatePaymentRequest::builder()
-            .amount(payrail_core::Money::new_minor(1_000, "USD").expect("money should be valid"))
+            .amount(crate::Money::new_minor(1_000, "USD").expect("money should be valid"))
             .reference("ORDER-1")
             .expect("reference should be valid")
-            .payment_method(payrail_core::PaymentMethod::paypal())
+            .payment_method(crate::PaymentMethod::paypal())
             .build()
             .expect("request should be valid");
 

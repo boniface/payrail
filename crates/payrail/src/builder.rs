@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use payrail_core::{
+use crate::{
     CapturablePaymentConnector, CountryCode, CryptoAsset, CryptoNetwork, PaymentConnector,
     PaymentError, PaymentProvider,
 };
@@ -90,16 +90,16 @@ impl PayRailBuilder {
 
     /// Registers Stripe.
     #[cfg(feature = "stripe")]
-    pub fn stripe(mut self, config: payrail_stripe::StripeConfig) -> Result<Self, PaymentError> {
-        let connector = Arc::new(payrail_stripe::StripeConnector::new(config)?);
+    pub fn stripe(mut self, config: crate::StripeConfig) -> Result<Self, PaymentError> {
+        let connector = Arc::new(crate::StripeConnector::new(config)?);
         self.router.register(connector);
         Ok(self)
     }
 
     /// Registers PayPal.
     #[cfg(feature = "paypal")]
-    pub fn paypal(mut self, config: payrail_paypal::PayPalConfig) -> Result<Self, PaymentError> {
-        let connector = Arc::new(payrail_paypal::PayPalConnector::new(config)?);
+    pub fn paypal(mut self, config: crate::PayPalConfig) -> Result<Self, PaymentError> {
+        let connector = Arc::new(crate::PayPalConnector::new(config)?);
         let payment_connector: Arc<dyn PaymentConnector> = connector.clone();
         let capturable: Arc<dyn CapturablePaymentConnector> = connector;
         self.router
@@ -109,8 +109,8 @@ impl PayRailBuilder {
 
     /// Registers Lipila.
     #[cfg(feature = "lipila")]
-    pub fn lipila(mut self, config: payrail_lipila::LipilaConfig) -> Result<Self, PaymentError> {
-        let connector = Arc::new(payrail_lipila::LipilaConnector::new(config)?);
+    pub fn lipila(mut self, config: crate::LipilaConfig) -> Result<Self, PaymentError> {
+        let connector = Arc::new(crate::LipilaConnector::new(config)?);
         self.router.register(connector);
         Ok(self)
     }
@@ -129,12 +129,12 @@ impl PayRailBuilder {
 mod tests {
     use std::sync::Arc;
 
-    use async_trait::async_trait;
-    use payrail_core::{
+    use crate::{
         CaptureResponse, CreatePaymentRequest, CryptoAsset, CryptoNetwork, Money, PaymentEvent,
         PaymentMethod, PaymentSession, PaymentStatus, PaymentStatusResponse, ProviderReference,
         RefundRequest, RefundResponse, WebhookRequest,
     };
+    use async_trait::async_trait;
 
     use super::*;
 
@@ -143,13 +143,13 @@ mod tests {
 
     #[derive(Debug)]
     struct RoutedBuilderConnector {
-        provider: payrail_core::PaymentProvider,
+        provider: crate::PaymentProvider,
     }
 
     #[async_trait]
     impl PaymentConnector for BuilderConnector {
-        fn provider(&self) -> payrail_core::PaymentProvider {
-            payrail_core::PaymentProvider::PayPal
+        fn provider(&self) -> crate::PaymentProvider {
+            crate::PaymentProvider::PayPal
         }
 
         async fn create_payment(
@@ -157,7 +157,7 @@ mod tests {
             request: CreatePaymentRequest,
         ) -> Result<PaymentSession, PaymentError> {
             PaymentSession::new(
-                payrail_core::PaymentProvider::PayPal,
+                crate::PaymentProvider::PayPal,
                 ProviderReference::new("provider-ref")?,
                 request.reference().clone(),
                 PaymentStatus::Created,
@@ -170,7 +170,7 @@ mod tests {
             provider_reference: &ProviderReference,
         ) -> Result<PaymentStatusResponse, PaymentError> {
             Ok(PaymentStatusResponse {
-                provider: payrail_core::PaymentProvider::PayPal,
+                provider: crate::PaymentProvider::PayPal,
                 provider_reference: provider_reference.clone(),
                 status: PaymentStatus::Created,
             })
@@ -199,10 +199,10 @@ mod tests {
     impl CapturablePaymentConnector for BuilderConnector {
         async fn capture_payment(
             &self,
-            request: payrail_core::CaptureRequest,
+            request: crate::CaptureRequest,
         ) -> Result<CaptureResponse, PaymentError> {
             Ok(CaptureResponse {
-                provider: payrail_core::PaymentProvider::PayPal,
+                provider: crate::PaymentProvider::PayPal,
                 provider_reference: request.provider_reference,
                 status: PaymentStatus::Succeeded,
             })
@@ -211,7 +211,7 @@ mod tests {
 
     #[async_trait]
     impl PaymentConnector for RoutedBuilderConnector {
-        fn provider(&self) -> payrail_core::PaymentProvider {
+        fn provider(&self) -> crate::PaymentProvider {
             self.provider.clone()
         }
 
@@ -272,13 +272,13 @@ mod tests {
 
     #[tokio::test]
     async fn builder_registers_custom_mobile_money_route() {
-        let provider = payrail_core::PaymentProvider::Other("mtn-momo".to_owned());
+        let provider = crate::PaymentProvider::Other("mtn-momo".to_owned());
         let client = PayRailBuilder::default()
             .connector(Arc::new(RoutedBuilderConnector {
                 provider: provider.clone(),
             }))
             .mobile_money_route(
-                payrail_core::CountryCode::new("ZM").expect("country should be valid"),
+                crate::CountryCode::new("ZM").expect("country should be valid"),
                 provider.clone(),
             )
             .build()
@@ -303,7 +303,7 @@ mod tests {
 
     #[tokio::test]
     async fn builder_registers_custom_crypto_route() {
-        let provider = payrail_core::PaymentProvider::Other("circle".to_owned());
+        let provider = crate::PaymentProvider::Other("circle".to_owned());
         let client = PayRailBuilder::default()
             .connector(Arc::new(RoutedBuilderConnector {
                 provider: provider.clone(),

@@ -39,7 +39,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: miri
-      - run: cargo miri test -p payrail-core
+      - run: cargo miri test -p payrail --no-default-features
 
   unused-deps:
     runs-on: ubuntu-latest

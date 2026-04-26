@@ -12,14 +12,12 @@ cargo-fuzz = true
 [dependencies]
 base64 = "0.22"
 futures = "0.3"
-hmac = "0.12"
+hmac = "0.13"
 http = "1"
 libfuzzer-sys = "0.4"
-payrail-core = { path = "../crates/payrail-core" }
-payrail-lipila = { path = "../crates/payrail-lipila" }
-payrail-stripe = { path = "../crates/payrail-stripe" }
+payrail = { path = "../crates/payrail", features = ["lipila", "stripe"] }
 secrecy = "0.10"
-sha2 = "0.10"
+sha2 = "0.11"
 time = "0.3"
 
 [[bin]]

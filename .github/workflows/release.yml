@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       mode:
-        description: "Run validation only, or publish crates and create the GitHub release"
+        description: "Run validation only, or publish the payrail crate and create the GitHub release"
         required: true
         default: dry-run
         type: choice
@@ -73,13 +73,8 @@ jobs:
             exit 1
           fi
 
-          mismatches=$(
-            grep -R -nE 'payrail(-[a-z-]+)? = \{.*version = "' crates/*/Cargo.toml \
-              | grep -v "version = \"$RELEASE_VERSION\"" || true
-          )
-          if [ -n "$mismatches" ]; then
-            echo "Internal payrail dependency versions must match $RELEASE_VERSION:"
-            echo "$mismatches"
+          if grep -q 'payrail-[a-z-]\+ = ' crates/payrail/Cargo.toml; then
+            echo "The public payrail crate must not depend on internal payrail-* packages."
             exit 1
           fi
       - run: make fmt-check
@@ -110,8 +105,8 @@ jobs:
           echo "Release dry run completed for $RELEASE_VERSION."
           echo "No crates were published and no GitHub release was created."
 
-  publish-crates:
-    name: Publish Crates
+  publish-crate:
+    name: Publish Crate
     runs-on: ubuntu-latest
     needs: validate
     if: ${{ inputs.mode == 'publish' }}
@@ -127,44 +122,17 @@ jobs:
             echo "CARGO_REGISTRY_TOKEN repository or environment secret is required."
             exit 1
           fi
-      - name: Publish crates in dependency order
+      - name: Publish payrail
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          publish_crate() {
-            crate="$1"
-            attempts=0
-
-            until cargo publish --dry-run -p "$crate"; do
-              attempts=$((attempts + 1))
-              if [ "$attempts" -ge 5 ]; then
-                echo "Dry-run publish failed for $crate after $attempts attempts."
-                exit 1
-              fi
-
-              echo "Waiting for crates.io index propagation before retrying $crate."
-              sleep 30
-            done
-
-            cargo publish -p "$crate"
-          }
-
-          publish_crate payrail-core
-          sleep 60
-          publish_crate payrail-stripe
-          sleep 60
-          publish_crate payrail-paypal
-          sleep 60
-          publish_crate payrail-mobile-money
-          sleep 60
-          publish_crate payrail-lipila
-          sleep 60
-          publish_crate payrail
+          cargo publish --dry-run -p payrail
+          cargo publish -p payrail
 
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: publish-crates
+    needs: publish-crate
     if: ${{ inputs.mode == 'publish' }}
     permissions:
       contents: write

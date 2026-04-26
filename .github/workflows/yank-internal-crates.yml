@@ -1,0 +1,78 @@
+name: Yank Internal Crates
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Internal crate version to yank or unyank, for example 0.1.0"
+        required: true
+        default: "0.1.0"
+        type: string
+      action:
+        description: "Yank accidental internal crate releases, or undo a yank"
+        required: true
+        default: yank
+        type: choice
+        options:
+          - yank
+          - unyank
+
+permissions:
+  contents: read
+
+concurrency:
+  group: yank-internal-crates-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  YANK_ACTION: ${{ inputs.action }}
+  YANK_VERSION: ${{ inputs.version }}
+
+jobs:
+  yank:
+    name: Yank Internal Crates
+    runs-on: ubuntu-latest
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate crates.io token
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "CARGO_REGISTRY_TOKEN repository or environment secret is required."
+            exit 1
+          fi
+      - name: Yank or unyank accidental internal crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          case "$YANK_VERSION" in
+            ""|*[!0-9A-Za-z.+-]*)
+              echo "Invalid version: $YANK_VERSION"
+              exit 1
+              ;;
+          esac
+
+          if ! printf '%s\n' "$YANK_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'; then
+            echo "Version must be valid semver, for example 0.1.0."
+            exit 1
+          fi
+
+          crates=(
+            payrail-core
+            payrail-stripe
+            payrail-paypal
+            payrail-mobile-money
+            payrail-lipila
+          )
+
+          for crate in "${crates[@]}"; do
+            if [ "$YANK_ACTION" = "unyank" ]; then
+              cargo yank "$crate@$YANK_VERSION" --undo
+            else
+              cargo yank "$crate@$YANK_VERSION"
+            fi
+          done

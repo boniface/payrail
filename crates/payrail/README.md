@@ -1,8 +1,9 @@
 # payrail
 
-Facade crate for PayRail.
+Provider-neutral Rust payments crate for PayRail.
 
-Use this crate from applications. It re-exports provider-neutral types from `payrail-core` and registers provider connectors behind feature flags.
+Use this crate from applications. It exposes provider-neutral types and registers first-party
+provider connectors behind feature flags.
 
 ## Features
 

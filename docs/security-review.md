@@ -66,15 +66,15 @@ below that target require explicit review until additional negative-path tests r
 
 | Module | Current line coverage | Review disposition |
 | --- | ---: | --- |
-| `payrail-paypal/src/auth.rs` | 82.26% | OAuth success and failure are mock-tested; add token-cache expiry and malformed-token tests before stable release. |
-| `payrail-paypal/src/client.rs` | 91.53% | Core order, idempotent capture, and webhook verification flows are mock-tested; add provider-error and malformed-response tests for every operation before stable release. |
-| `payrail-stripe/src/client.rs` | 84.51% | Checkout, idempotent refund, session-to-payment-intent refund resolution, status, and webhook flows are mock-tested; add missing-field and provider-error tests before stable release. |
-| `payrail-lipila/src/client.rs` | 89.60% | Collection, status, and webhook flows are mock-tested; add status-error and malformed-response tests before stable release. |
+| `payrail/src/providers/paypal/auth.rs` | 82.26% | OAuth success and failure are mock-tested; add token-cache expiry and malformed-token tests before stable release. |
+| `payrail/src/providers/paypal/client.rs` | 91.53% | Core order, idempotent capture, and webhook verification flows are mock-tested; add provider-error and malformed-response tests for every operation before stable release. |
+| `payrail/src/providers/stripe/client.rs` | 84.51% | Checkout, idempotent refund, session-to-payment-intent refund resolution, status, and webhook flows are mock-tested; add missing-field and provider-error tests before stable release. |
+| `payrail/src/providers/lipila/client.rs` | 89.60% | Collection, status, and webhook flows are mock-tested; add status-error and malformed-response tests before stable release. |
 
 ## Hardening Evidence
 
 - Fuzz targets exist for core validation, Stripe signed webhook parsing, and Lipila signed webhook parsing.
 - PayPal webhook verification depends on PayPal's verification endpoint and is covered with mocked HTTP tests rather than a pure local fuzz target.
 - Scheduled CI builds and runs each fuzz target for a bounded smoke run.
-- Scheduled CI runs mutation testing, semver checks, Miri for `payrail-core`, and unused dependency checks.
+- Scheduled CI runs mutation testing, semver checks, Miri for `payrail`, and unused dependency checks.
 - Release candidates must archive mutation and fuzz results before publishing.

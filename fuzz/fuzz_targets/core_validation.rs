@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use payrail_core::{
+use payrail::{
     CountryCode, CurrencyCode, IdempotencyKey, MerchantReference, Money, PaymentMethod, PhoneNumber,
 };
 
