@@ -1,10 +1,10 @@
+use std::sync::Arc;
+
 use crate::{
-    CapturablePaymentConnector, CaptureRequest, CaptureResponse, CreatePaymentRequest, NextAction,
-    PaymentConnector, PaymentError, PaymentEvent, PaymentMethod, PaymentProvider, PaymentSession,
-    PaymentStatusResponse, ProviderErrorDetails, ProviderReference, RefundRequest, RefundResponse,
-    WebhookRequest,
+    CaptureRequest, CaptureResponse, CreatePaymentRequest, NextAction, PaymentError, PaymentEvent,
+    PaymentMethod, PaymentProvider, PaymentSession, PaymentStatusResponse, ProviderErrorDetails,
+    ProviderReference, RefundRequest, RefundResponse, WebhookRequest,
 };
-use async_trait::async_trait;
 use url::Url;
 
 use super::{
@@ -22,6 +22,16 @@ pub struct PayPalConnector {
     config: PayPalConfig,
     client: reqwest::Client,
     tokens: TokenCache,
+}
+
+impl Clone for PayPalConnector {
+    fn clone(&self) -> Self {
+        Self {
+            config: self.config.clone(),
+            client: self.client.clone(),
+            tokens: TokenCache::default(),
+        }
+    }
 }
 
 impl PayPalConnector {
@@ -49,7 +59,7 @@ impl PayPalConnector {
             .map_err(|error| PaymentError::InvalidConfiguration(error.to_string()))
     }
 
-    async fn access_token(&self) -> Result<String, PaymentError> {
+    async fn access_token(&self) -> Result<Arc<str>, PaymentError> {
         self.tokens.access_token(&self.client, &self.config).await
     }
 
@@ -94,7 +104,7 @@ impl PayPalConnector {
             .parse_response(
                 self.client
                     .post(self.endpoint("/v1/notifications/verify-webhook-signature")?)
-                    .bearer_auth(token)
+                    .bearer_auth(token.as_ref())
                     .json(&body)
                     .send()
                     .await?,
@@ -116,13 +126,18 @@ fn header_value<'a>(headers: &'a http::HeaderMap, name: &str) -> Result<&'a str,
         .ok_or(PaymentError::WebhookVerificationFailed)
 }
 
-#[async_trait]
-impl PaymentConnector for PayPalConnector {
-    fn provider(&self) -> PaymentProvider {
+impl PayPalConnector {
+    #[must_use]
+    pub const fn provider_id(&self) -> PaymentProvider {
         PaymentProvider::PayPal
     }
 
-    async fn create_payment(
+    /// Creates a PayPal order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the request cannot be mapped or PayPal rejects the request.
+    pub async fn create_payment(
         &self,
         request: CreatePaymentRequest,
     ) -> Result<PaymentSession, PaymentError> {
@@ -136,7 +151,7 @@ impl PaymentConnector for PayPalConnector {
         let mut builder = self
             .client
             .post(self.endpoint("/v2/checkout/orders")?)
-            .bearer_auth(token)
+            .bearer_auth(token.as_ref())
             .json(&create_order_body(&request));
         if let Some(key) = request.idempotency_key() {
             builder = builder.header("PayPal-Request-Id", key.as_str());
@@ -150,17 +165,23 @@ impl PaymentConnector for PayPalConnector {
         );
         let order: PayPalOrder = self.parse_response(builder.send().await?).await?;
         let url = approval_url(&order)?;
+        let reference = request.into_reference();
 
         PaymentSession::new(
             PaymentProvider::PayPal,
             ProviderReference::new(&order.id)?,
-            request.reference().clone(),
+            reference,
             map_order_status(&order.status),
             Some(NextAction::RedirectToUrl { url }),
         )
     }
 
-    async fn get_payment_status(
+    /// Gets the PayPal payment status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when PayPal rejects the request or the response cannot be parsed.
+    pub async fn get_payment_status(
         &self,
         provider_reference: &ProviderReference,
     ) -> Result<PaymentStatusResponse, PaymentError> {
@@ -175,7 +196,7 @@ impl PaymentConnector for PayPalConnector {
             .parse_response(
                 self.client
                     .get(self.endpoint(&path)?)
-                    .bearer_auth(token)
+                    .bearer_auth(token.as_ref())
                     .send()
                     .await?,
             )
@@ -188,7 +209,12 @@ impl PaymentConnector for PayPalConnector {
         })
     }
 
-    async fn refund_payment(
+    /// Refunds a PayPal payment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error because PayPal refunds are not implemented yet.
+    pub async fn refund_payment(
         &self,
         _request: RefundRequest,
     ) -> Result<RefundResponse, PaymentError> {
@@ -197,7 +223,12 @@ impl PaymentConnector for PayPalConnector {
         ))
     }
 
-    async fn parse_webhook(
+    /// Parses and verifies a PayPal webhook.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when verification fails or the payload is invalid.
+    pub async fn parse_webhook(
         &self,
         request: WebhookRequest<'_>,
     ) -> Result<PaymentEvent, PaymentError> {
@@ -212,9 +243,13 @@ impl PaymentConnector for PayPalConnector {
     }
 }
 
-#[async_trait]
-impl CapturablePaymentConnector for PayPalConnector {
-    async fn capture_payment(
+impl PayPalConnector {
+    /// Captures a PayPal order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when PayPal rejects the capture request.
+    pub async fn capture_payment(
         &self,
         request: CaptureRequest,
     ) -> Result<CaptureResponse, PaymentError> {
@@ -232,7 +267,7 @@ impl CapturablePaymentConnector for PayPalConnector {
             .parse_response(
                 self.client
                     .post(self.endpoint(&path)?)
-                    .bearer_auth(token)
+                    .bearer_auth(token.as_ref())
                     .header("PayPal-Request-Id", request.idempotency_key.as_str())
                     .json(&serde_json::json!({}))
                     .send()

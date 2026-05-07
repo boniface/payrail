@@ -5,7 +5,7 @@ use futures::executor::block_on;
 use hmac::{Hmac, KeyInit, Mac};
 use http::HeaderMap;
 use libfuzzer_sys::fuzz_target;
-use payrail::{LipilaConfig, LipilaConnector, PaymentConnector, WebhookRequest};
+use payrail::{LipilaConfig, LipilaConnector, WebhookRequest};
 use secrecy::SecretString;
 use sha2::Sha256;
 use time::OffsetDateTime;

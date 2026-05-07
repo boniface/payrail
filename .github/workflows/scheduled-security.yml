@@ -14,8 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@cargo-mutants
-      - uses: taiki-e/install-action@cargo-semver-checks
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants,cargo-semver-checks
       - run: cargo mutants --workspace --timeout 60
       - run: cargo semver-checks check-release --workspace
 
@@ -24,13 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
-      - uses: taiki-e/install-action@cargo-fuzz
-      - run: cargo fuzz build core_validation
-      - run: cargo fuzz build stripe_webhook
-      - run: cargo fuzz build lipila_webhook
-      - run: cargo fuzz run core_validation -- -runs=1000
-      - run: cargo fuzz run stripe_webhook -- -runs=1000
-      - run: cargo fuzz run lipila_webhook -- -runs=1000
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - run: cargo +nightly fuzz build core_validation
+      - run: cargo +nightly fuzz build stripe_webhook
+      - run: cargo +nightly fuzz build lipila_webhook
+      - run: cargo +nightly fuzz run core_validation -- -runs=1000
+      - run: cargo +nightly fuzz run stripe_webhook -- -runs=1000
+      - run: cargo +nightly fuzz run lipila_webhook -- -runs=1000
 
   miri:
     runs-on: ubuntu-latest
@@ -46,5 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@cargo-machete
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-machete
       - run: cargo machete

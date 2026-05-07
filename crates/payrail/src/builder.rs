@@ -1,9 +1,4 @@
-use std::sync::Arc;
-
-use crate::{
-    CapturablePaymentConnector, CountryCode, CryptoAsset, CryptoNetwork, PaymentConnector,
-    PaymentError, PaymentProvider,
-};
+use crate::{BuiltinProvider, CountryCode, CryptoAsset, CryptoNetwork, PaymentError};
 
 use crate::{PayRailClient, PaymentRouter};
 
@@ -24,64 +19,46 @@ impl std::fmt::Debug for PayRailBuilder {
 }
 
 impl PayRailBuilder {
-    /// Registers a custom connector.
-    pub fn connector(mut self, connector: Arc<dyn PaymentConnector>) -> Self {
-        self.router.register(connector);
-        self
-    }
-
-    /// Registers a custom capture-capable connector.
-    pub fn capturable_connector<C>(mut self, connector: Arc<C>) -> Self
-    where
-        C: PaymentConnector + CapturablePaymentConnector + 'static,
-    {
-        let payment_connector: Arc<dyn PaymentConnector> = connector.clone();
-        let capturable: Arc<dyn CapturablePaymentConnector> = connector;
-        self.router
-            .register_capturable(payment_connector, capturable);
-        self
-    }
-
-    /// Routes Mobile Money payments for a country to a provider.
+    /// Routes Mobile Money payments for a country to a built-in provider.
     ///
-    /// This is intended for custom Mobile Money providers and aggregators such as MTN MoMo,
-    /// M-Pesa, Airtel Money, Flutterwave, or another Lipila-like adapter.
-    pub fn mobile_money_route(mut self, country: CountryCode, provider: PaymentProvider) -> Self {
+    /// The selected provider must also have a connector registered by enabling and configuring its
+    /// feature. Otherwise routed payments return `ConnectorNotConfigured`.
+    pub fn mobile_money_route(mut self, country: CountryCode, provider: BuiltinProvider) -> Self {
         self.router.route_mobile_money(country, provider);
         self
     }
 
-    /// Routes crypto and stablecoin payments to a default provider.
+    /// Routes crypto and stablecoin payments to a default built-in provider.
     ///
-    /// This is intended for custom crypto providers such as Circle, Coinbase, Bridge, Binance,
-    /// or another wallet/settlement adapter.
-    pub fn crypto_route(mut self, provider: PaymentProvider) -> Self {
+    /// The selected provider must also have a connector registered by enabling and configuring its
+    /// feature. Otherwise routed payments return `ConnectorNotConfigured`.
+    pub fn crypto_route(mut self, provider: BuiltinProvider) -> Self {
         self.router.route_crypto(provider);
         self
     }
 
-    /// Routes crypto and stablecoin payments for a specific asset to a provider.
-    pub fn crypto_asset_route(mut self, asset: CryptoAsset, provider: PaymentProvider) -> Self {
+    /// Routes crypto and stablecoin payments for a specific asset to a built-in provider.
+    pub fn crypto_asset_route(mut self, asset: CryptoAsset, provider: BuiltinProvider) -> Self {
         self.router.route_crypto_asset(asset, provider);
         self
     }
 
-    /// Routes crypto payments on a specific network to a provider.
+    /// Routes crypto payments on a specific network to a built-in provider.
     pub fn crypto_network_route(
         mut self,
         network: CryptoNetwork,
-        provider: PaymentProvider,
+        provider: BuiltinProvider,
     ) -> Self {
         self.router.route_crypto_network(network, provider);
         self
     }
 
-    /// Routes crypto payments for a specific asset and network to a provider.
+    /// Routes crypto payments for a specific asset and network to a built-in provider.
     pub fn crypto_asset_network_route(
         mut self,
         asset: CryptoAsset,
         network: CryptoNetwork,
-        provider: PaymentProvider,
+        provider: BuiltinProvider,
     ) -> Self {
         self.router
             .route_crypto_asset_network(asset, network, provider);
@@ -91,27 +68,24 @@ impl PayRailBuilder {
     /// Registers Stripe.
     #[cfg(feature = "stripe")]
     pub fn stripe(mut self, config: crate::StripeConfig) -> Result<Self, PaymentError> {
-        let connector = Arc::new(crate::StripeConnector::new(config)?);
-        self.router.register(connector);
+        self.router
+            .register_stripe(crate::StripeConnector::new(config)?);
         Ok(self)
     }
 
     /// Registers PayPal.
     #[cfg(feature = "paypal")]
     pub fn paypal(mut self, config: crate::PayPalConfig) -> Result<Self, PaymentError> {
-        let connector = Arc::new(crate::PayPalConnector::new(config)?);
-        let payment_connector: Arc<dyn PaymentConnector> = connector.clone();
-        let capturable: Arc<dyn CapturablePaymentConnector> = connector;
         self.router
-            .register_capturable(payment_connector, capturable);
+            .register_paypal(crate::PayPalConnector::new(config)?);
         Ok(self)
     }
 
     /// Registers Lipila.
     #[cfg(feature = "lipila")]
     pub fn lipila(mut self, config: crate::LipilaConfig) -> Result<Self, PaymentError> {
-        let connector = Arc::new(crate::LipilaConnector::new(config)?);
-        self.router.register(connector);
+        self.router
+            .register_lipila(crate::LipilaConnector::new(config)?);
         Ok(self)
     }
 
@@ -127,143 +101,15 @@ impl PayRailBuilder {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use crate::{
-        CaptureResponse, CreatePaymentRequest, CryptoAsset, CryptoNetwork, Money, PaymentEvent,
-        PaymentMethod, PaymentSession, PaymentStatus, PaymentStatusResponse, ProviderReference,
-        RefundRequest, RefundResponse, WebhookRequest,
+        CreatePaymentRequest, CryptoAsset, CryptoNetwork, Money, PaymentMethod, PaymentProvider,
     };
-    use async_trait::async_trait;
 
     use super::*;
 
-    #[derive(Debug)]
-    struct BuilderConnector;
-
-    #[derive(Debug)]
-    struct RoutedBuilderConnector {
-        provider: crate::PaymentProvider,
-    }
-
-    #[async_trait]
-    impl PaymentConnector for BuilderConnector {
-        fn provider(&self) -> crate::PaymentProvider {
-            crate::PaymentProvider::PayPal
-        }
-
-        async fn create_payment(
-            &self,
-            request: CreatePaymentRequest,
-        ) -> Result<PaymentSession, PaymentError> {
-            PaymentSession::new(
-                crate::PaymentProvider::PayPal,
-                ProviderReference::new("provider-ref")?,
-                request.reference().clone(),
-                PaymentStatus::Created,
-                None,
-            )
-        }
-
-        async fn get_payment_status(
-            &self,
-            provider_reference: &ProviderReference,
-        ) -> Result<PaymentStatusResponse, PaymentError> {
-            Ok(PaymentStatusResponse {
-                provider: crate::PaymentProvider::PayPal,
-                provider_reference: provider_reference.clone(),
-                status: PaymentStatus::Created,
-            })
-        }
-
-        async fn refund_payment(
-            &self,
-            request: RefundRequest,
-        ) -> Result<RefundResponse, PaymentError> {
-            Ok(RefundResponse {
-                provider: request.provider,
-                provider_reference: request.provider_reference,
-                status: PaymentStatus::Refunded,
-            })
-        }
-
-        async fn parse_webhook(
-            &self,
-            _request: WebhookRequest<'_>,
-        ) -> Result<PaymentEvent, PaymentError> {
-            Err(PaymentError::UnsupportedOperation("webhook".to_owned()))
-        }
-    }
-
-    #[async_trait]
-    impl CapturablePaymentConnector for BuilderConnector {
-        async fn capture_payment(
-            &self,
-            request: crate::CaptureRequest,
-        ) -> Result<CaptureResponse, PaymentError> {
-            Ok(CaptureResponse {
-                provider: crate::PaymentProvider::PayPal,
-                provider_reference: request.provider_reference,
-                status: PaymentStatus::Succeeded,
-            })
-        }
-    }
-
-    #[async_trait]
-    impl PaymentConnector for RoutedBuilderConnector {
-        fn provider(&self) -> crate::PaymentProvider {
-            self.provider.clone()
-        }
-
-        async fn create_payment(
-            &self,
-            request: CreatePaymentRequest,
-        ) -> Result<PaymentSession, PaymentError> {
-            PaymentSession::new(
-                self.provider.clone(),
-                ProviderReference::new("provider-ref")?,
-                request.reference().clone(),
-                PaymentStatus::Created,
-                None,
-            )
-        }
-
-        async fn get_payment_status(
-            &self,
-            provider_reference: &ProviderReference,
-        ) -> Result<PaymentStatusResponse, PaymentError> {
-            Ok(PaymentStatusResponse {
-                provider: self.provider.clone(),
-                provider_reference: provider_reference.clone(),
-                status: PaymentStatus::Created,
-            })
-        }
-
-        async fn refund_payment(
-            &self,
-            request: RefundRequest,
-        ) -> Result<RefundResponse, PaymentError> {
-            Ok(RefundResponse {
-                provider: request.provider,
-                provider_reference: request.provider_reference,
-                status: PaymentStatus::Refunded,
-            })
-        }
-
-        async fn parse_webhook(
-            &self,
-            _request: WebhookRequest<'_>,
-        ) -> Result<PaymentEvent, PaymentError> {
-            Err(PaymentError::UnsupportedOperation("webhook".to_owned()))
-        }
-    }
-
     #[test]
-    fn builder_registers_connectors() {
-        let plain: Arc<dyn PaymentConnector> = Arc::new(BuilderConnector);
+    fn builder_builds_client() {
         let client = PayRailBuilder::default()
-            .connector(plain)
-            .capturable_connector(Arc::new(BuilderConnector))
             .build()
             .expect("client should build");
 
@@ -271,15 +117,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn builder_registers_custom_mobile_money_route() {
-        let provider = crate::PaymentProvider::Other("mtn-momo".to_owned());
+    async fn builder_registers_builtin_mobile_money_route() {
         let client = PayRailBuilder::default()
-            .connector(Arc::new(RoutedBuilderConnector {
-                provider: provider.clone(),
-            }))
             .mobile_money_route(
                 crate::CountryCode::new("ZM").expect("country should be valid"),
-                provider.clone(),
+                BuiltinProvider::Circle,
             )
             .build()
             .expect("client should build");
@@ -293,22 +135,22 @@ mod tests {
             .build()
             .expect("request should be valid");
 
-        let session = client
-            .create_payment(request)
-            .await
-            .expect("session should be created");
-
-        assert_eq!(session.provider, provider);
+        assert!(matches!(
+            client.create_payment(request).await,
+            Err(PaymentError::ConnectorNotConfigured {
+                provider: PaymentProvider::Circle
+            })
+        ));
     }
 
     #[tokio::test]
-    async fn builder_registers_custom_crypto_route() {
-        let provider = crate::PaymentProvider::Other("circle".to_owned());
+    async fn builder_registers_builtin_crypto_route() {
         let client = PayRailBuilder::default()
-            .connector(Arc::new(RoutedBuilderConnector {
-                provider: provider.clone(),
-            }))
-            .crypto_asset_network_route(CryptoAsset::Usdc, CryptoNetwork::Base, provider.clone())
+            .crypto_asset_network_route(
+                CryptoAsset::Usdc,
+                CryptoNetwork::Base,
+                BuiltinProvider::Bridge,
+            )
             .build()
             .expect("client should build");
         let request = CreatePaymentRequest::builder()
@@ -319,11 +161,11 @@ mod tests {
             .build()
             .expect("request should be valid");
 
-        let session = client
-            .create_payment(request)
-            .await
-            .expect("session should be created");
-
-        assert_eq!(session.provider, provider);
+        assert!(matches!(
+            client.create_payment(request).await,
+            Err(PaymentError::ConnectorNotConfigured {
+                provider: PaymentProvider::Bridge
+            })
+        ));
     }
 }

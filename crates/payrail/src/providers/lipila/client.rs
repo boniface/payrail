@@ -1,9 +1,8 @@
 use crate::{
-    CreatePaymentRequest, CurrencyCode, NextAction, PaymentConnector, PaymentError, PaymentEvent,
-    PaymentMethod, PaymentProvider, PaymentSession, PaymentStatusResponse, ProviderErrorDetails,
+    CreatePaymentRequest, CurrencyCode, NextAction, PaymentError, PaymentEvent, PaymentMethod,
+    PaymentProvider, PaymentSession, PaymentStatusResponse, ProviderErrorDetails,
     ProviderReference, RefundRequest, RefundResponse, WebhookRequest,
 };
-use async_trait::async_trait;
 use secrecy::ExposeSecret;
 use url::Url;
 
@@ -65,13 +64,18 @@ impl LipilaConnector {
     }
 }
 
-#[async_trait]
-impl PaymentConnector for LipilaConnector {
-    fn provider(&self) -> PaymentProvider {
+impl LipilaConnector {
+    #[must_use]
+    pub const fn provider_id(&self) -> PaymentProvider {
         PaymentProvider::Lipila
     }
 
-    async fn create_payment(
+    /// Creates a Lipila mobile-money collection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the request cannot be mapped or Lipila rejects the request.
+    pub async fn create_payment(
         &self,
         request: CreatePaymentRequest,
     ) -> Result<PaymentSession, PaymentError> {
@@ -97,6 +101,7 @@ impl PaymentConnector for LipilaConnector {
             "sending provider request"
         );
         let response: LipilaCollectionResponse = self.parse_response(builder.send().await?).await?;
+        let reference = request.into_reference();
         let _normalized_amount = response.amount.as_i64().map(|amount| {
             CurrencyCode::new(&response.currency)
                 .and_then(|currency| currency.major_integer_to_minor_units(amount))
@@ -116,13 +121,18 @@ impl PaymentConnector for LipilaConnector {
         PaymentSession::new(
             PaymentProvider::Lipila,
             ProviderReference::new(provider_reference)?,
-            request.reference().clone(),
+            reference,
             map_status(&response.status),
             Some(NextAction::MobileMoneyPrompt { message }),
         )
     }
 
-    async fn get_payment_status(
+    /// Gets the Lipila payment status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when Lipila rejects the request or the response cannot be parsed.
+    pub async fn get_payment_status(
         &self,
         provider_reference: &ProviderReference,
     ) -> Result<PaymentStatusResponse, PaymentError> {
@@ -157,7 +167,12 @@ impl PaymentConnector for LipilaConnector {
         })
     }
 
-    async fn refund_payment(
+    /// Refunds a Lipila payment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error because Lipila refunds are not implemented yet.
+    pub async fn refund_payment(
         &self,
         _request: RefundRequest,
     ) -> Result<RefundResponse, PaymentError> {
@@ -166,7 +181,12 @@ impl PaymentConnector for LipilaConnector {
         ))
     }
 
-    async fn parse_webhook(
+    /// Parses and verifies a Lipila webhook.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when verification fails or the payload is invalid.
+    pub async fn parse_webhook(
         &self,
         request: WebhookRequest<'_>,
     ) -> Result<PaymentEvent, PaymentError> {

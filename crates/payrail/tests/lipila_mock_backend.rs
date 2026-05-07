@@ -3,8 +3,8 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use hmac::{Hmac, KeyInit, Mac};
 use payrail::{
-    IdempotencyKey, Money, PaymentConnector, PaymentMethod, PaymentProvider, ProviderReference,
-    RefundRequest, WebhookRequest,
+    IdempotencyKey, Money, PaymentMethod, PaymentProvider, ProviderReference, RefundRequest,
+    WebhookRequest,
 };
 use payrail::{LipilaConfig, LipilaConnector};
 use secrecy::SecretString;

@@ -1,8 +1,9 @@
 # PayRail
 
-[![CI](https://github.com/boniface/payrail/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/boniface/payrail/actions/workflows/ci.yml)
-[![Scheduled Security](https://github.com/boniface/payrail/actions/workflows/scheduled-security.yml/badge.svg?branch=main)](https://github.com/boniface/payrail/actions/workflows/scheduled-security.yml)
-[![Release](https://github.com/boniface/payrail/actions/workflows/release.yml/badge.svg)](https://github.com/boniface/payrail/actions/workflows/release.yml)
+[CI](https://github.com/boniface/payrail/actions/workflows/ci.yml) ·
+[Scheduled Security](https://github.com/boniface/payrail/actions/workflows/scheduled-security.yml) ·
+[Release](https://github.com/boniface/payrail/actions/workflows/release.yml)
+
 [![Crates.io](https://img.shields.io/crates/v/payrail.svg)](https://crates.io/crates/payrail)
 [![Docs.rs](https://docs.rs/payrail/badge.svg)](https://docs.rs/payrail)
 [![License](https://img.shields.io/crates/l/payrail.svg)](https://github.com/boniface/payrail#license)
@@ -20,11 +21,11 @@ they need while depending on one public crate.
 
 ## Crate
 
-`payrail` is the only public crate. It contains provider-neutral domain types, connector traits,
-idempotency, webhook abstractions, and first-party providers behind Cargo features.
+`payrail` is the only public crate. It contains provider-neutral domain types, idempotency,
+webhook abstractions, route configuration, and first-party providers behind Cargo features.
 
-Planned extension points include additional Mobile Money providers, Mobile Money aggregators, and
-crypto providers such as Circle, Coinbase, Bridge, and Binance.
+Planned first-party extension points include additional Mobile Money providers, Mobile Money
+aggregators, and crypto providers such as Circle, Coinbase, Bridge, and Binance.
 
 ## Installation
 
@@ -78,34 +79,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Routing Extensions
 
-Applications can register custom connectors through the facade builder. This is how future or
-third-party providers can support MTN MoMo, M-Pesa, Airtel Money, Flutterwave, Circle, Coinbase,
-Bridge, Binance, or similar payment rails without changing PayRail core types.
+Routes use PayRail's built-in provider identifiers and dispatch through concrete connector fields.
+There is no trait-object connector registry in the library hot path.
+
+Route configuration and connector availability are separate:
+
+- Implemented connectors today: Stripe, PayPal, and Lipila.
+- Reserved crypto route targets: Circle, Coinbase, Bridge, and Binance. These are modeled provider
+  IDs, but payments routed to them return `ConnectorNotConfigured` until first-party connectors are
+  implemented and configured.
+- Unmodeled rails such as MTN MoMo, M-Pesa, Airtel Money, Flutterwave, or Paystack require a
+  first-party provider contribution before applications can route traffic to them.
+- `PaymentProvider::Other(...)` is metadata for normalized provider references and events. It is not
+  a runtime routing extension point.
 
 ### Mobile Money Routing
 
-Lipila is the default Zambia Mobile Money route. Applications can override or add country routes:
+Lipila is the default Zambia Mobile Money route. Applications can override or add country routes
+only to modeled built-in providers. Do not route a country to a provider unless that provider
+connector supports the country.
 
 ```rust
-use std::sync::Arc;
+use payrail::{BuiltinProvider, CountryCode, PayRail};
 
-use payrail::{CountryCode, PayRail, PaymentConnector, PaymentProvider};
-
-# fn custom_connector() -> Arc<dyn PaymentConnector> { unimplemented!() }
-# fn example() -> Result<(), payrail::PaymentError> {
 let client = PayRail::builder()
-    .connector(custom_connector())
     .mobile_money_route(
-        CountryCode::new("KE")?,
-        PaymentProvider::Other("mpesa".to_owned()),
-    )
-    .mobile_money_route(
-        CountryCode::new("UG")?,
-        PaymentProvider::Other("airtel".to_owned()),
+        CountryCode::new("ZM")?,
+        BuiltinProvider::Lipila,
     )
     .build()?;
-# Ok(())
-# }
 ```
 
 ### Crypto Routing
@@ -115,32 +117,22 @@ stablecoins, including USDT, require explicit routing so unsupported assets or n
 accidentally route to a provider that cannot process them.
 
 ```rust
-use std::sync::Arc;
-
 use payrail::{
-    CryptoAsset, CryptoNetwork, PayRail, PaymentConnector, PaymentMethod, PaymentProvider,
+    BuiltinProvider, CryptoAsset, CryptoNetwork, PayRail, PaymentMethod,
 };
 
-# fn circle_connector() -> Arc<dyn PaymentConnector> { unimplemented!() }
-# fn coinbase_connector() -> Arc<dyn PaymentConnector> { unimplemented!() }
-# fn example() -> Result<(), payrail::PaymentError> {
 let client = PayRail::builder()
-    .connector(coinbase_connector())
-    .connector(circle_connector())
-    .crypto_route(PaymentProvider::Coinbase)
-    .crypto_asset_route(CryptoAsset::Usdt, PaymentProvider::Coinbase)
+    .crypto_route(BuiltinProvider::Coinbase)
+    .crypto_asset_route(CryptoAsset::Usdt, BuiltinProvider::Coinbase)
     .crypto_asset_network_route(
         CryptoAsset::Usdc,
         CryptoNetwork::Base,
-        PaymentProvider::Circle,
+        BuiltinProvider::Circle,
     )
     .build()?;
 
 let method = PaymentMethod::usdc_on(CryptoNetwork::Base);
 let usdt = PaymentMethod::stablecoin_usdt();
-# let _ = (client, method, usdt);
-# Ok(())
-# }
 ```
 
 Crypto route precedence is asset + network, then asset, then network, then default crypto route.
@@ -148,12 +140,17 @@ Future stablecoins can be supported without changing core by using `StablecoinAs
 and `CryptoAsset::Other(symbol)` with an explicit asset route. Stablecoins that become broadly
 supported can be promoted to first-class enum variants with matching routing and provider tests.
 
+The example above configures route selection only. It is useful for validating routing behavior and
+for future connector work, but successful payment execution requires the selected provider connector
+to exist and be configured.
+
 ## Contributing Providers
 
-Provider extensions can be implemented inside PayRail for first-party support or as separate crates
-for third-party experiments. New connectors must use PayRail connector traits, keep secret
-configuration in `secrecy::SecretString`, verify webhooks before parsing, and include mocked backend
-integration tests for provider operations.
+Provider extensions are implemented inside PayRail as feature-gated first-party modules so the
+facade can keep static dispatch and avoid runtime trait-object routing. New providers must add a
+`BuiltinProvider` route target when needed, keep secret configuration in `secrecy::SecretString`,
+verify webhooks before parsing, and include mocked backend integration tests for provider
+operations.
 
 Use the provider contribution template:
 
@@ -189,12 +186,13 @@ The workspace release gate is 90% line coverage. Core and security-sensitive mod
 
 - Stripe stablecoin support is delegated to Stripe-supported Checkout flows.
 - General crypto payments use provider-neutral `PaymentMethod::crypto` and explicit route
-  registration for providers such as Circle, Coinbase, Bridge, Binance, or custom adapters.
+  registration for modeled providers such as Circle, Coinbase, Bridge, or Binance once their
+  first-party connectors exist.
 - PayRail does not custody private keys, seed phrases, or raw wallet credentials.
 - PayPal refunds are not implemented in v1.
 - Lipila v1 exposes Zambia Mobile Money collections only.
 - Other Mobile Money providers such as MTN MoMo, M-Pesa, Airtel Money, or aggregators such as
-  Flutterwave are future adapters over the shared Mobile Money abstractions.
+  Flutterwave are future first-party adapters over the shared Mobile Money abstractions.
 
 ## License
 

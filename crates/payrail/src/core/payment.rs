@@ -102,6 +102,11 @@ impl CreatePaymentRequest {
     pub const fn metadata(&self) -> &Metadata {
         &self.metadata
     }
+
+    #[cfg(any(feature = "lipila", feature = "paypal", feature = "stripe"))]
+    pub(crate) fn into_reference(self) -> MerchantReference {
+        self.reference
+    }
 }
 
 /// Builder for [`CreatePaymentRequest`].
@@ -271,6 +276,48 @@ impl PaymentSession {
             next_action,
         })
     }
+
+    /// Returns the PayRail payment ID.
+    #[inline]
+    #[must_use]
+    pub const fn payment_id(&self) -> &PaymentId {
+        &self.payment_id
+    }
+
+    /// Returns the provider handling the payment.
+    #[inline]
+    #[must_use]
+    pub const fn provider(&self) -> &PaymentProvider {
+        &self.provider
+    }
+
+    /// Returns the provider reference.
+    #[inline]
+    #[must_use]
+    pub const fn provider_reference(&self) -> &ProviderReference {
+        &self.provider_reference
+    }
+
+    /// Returns the merchant reference.
+    #[inline]
+    #[must_use]
+    pub const fn merchant_reference(&self) -> &MerchantReference {
+        &self.merchant_reference
+    }
+
+    /// Returns the normalized status.
+    #[inline]
+    #[must_use]
+    pub const fn status(&self) -> PaymentStatus {
+        self.status
+    }
+
+    /// Returns the next required action.
+    #[inline]
+    #[must_use]
+    pub const fn next_action(&self) -> Option<&NextAction> {
+        self.next_action.as_ref()
+    }
 }
 
 /// Normalized payment status response.
@@ -282,6 +329,29 @@ pub struct PaymentStatusResponse {
     pub provider_reference: ProviderReference,
     /// Normalized status.
     pub status: PaymentStatus,
+}
+
+impl PaymentStatusResponse {
+    /// Returns the provider handling the payment.
+    #[inline]
+    #[must_use]
+    pub const fn provider(&self) -> &PaymentProvider {
+        &self.provider
+    }
+
+    /// Returns the provider reference.
+    #[inline]
+    #[must_use]
+    pub const fn provider_reference(&self) -> &ProviderReference {
+        &self.provider_reference
+    }
+
+    /// Returns the normalized status.
+    #[inline]
+    #[must_use]
+    pub const fn status(&self) -> PaymentStatus {
+        self.status
+    }
 }
 
 #[cfg(test)]

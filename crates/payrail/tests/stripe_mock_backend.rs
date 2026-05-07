@@ -2,8 +2,8 @@
 
 use hmac::{Hmac, KeyInit, Mac};
 use payrail::{
-    IdempotencyKey, Money, PaymentConnector, PaymentError, PaymentMethod, PaymentProvider,
-    RefundRequest, WebhookRequest,
+    IdempotencyKey, Money, PaymentError, PaymentMethod, PaymentProvider, RefundRequest,
+    WebhookRequest,
 };
 use payrail::{StripeConfig, StripeConnector};
 use secrecy::SecretString;

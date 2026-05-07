@@ -1,6 +1,5 @@
 mod amount;
 mod config;
-mod connector;
 mod country;
 mod currency;
 mod customer;
@@ -20,7 +19,6 @@ mod webhook;
 
 pub use amount::MinorAmount;
 pub use config::Environment;
-pub use connector::{CapturablePaymentConnector, PaymentConnector};
 pub use country::CountryCode;
 pub use currency::CurrencyCode;
 pub use customer::Customer;
@@ -39,7 +37,7 @@ pub use payment_method::{
     StablecoinPaymentMethod,
 };
 pub use phone::PhoneNumber;
-pub use provider::PaymentProvider;
+pub use provider::{BuiltinProvider, PaymentProvider};
 pub use reference::{MerchantReference, PaymentId, ProviderReference, WebhookEventId};
 pub use refund::{CaptureRequest, CaptureResponse, RefundRequest, RefundResponse};
 pub use status::PaymentStatus;

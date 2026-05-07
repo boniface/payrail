@@ -1,8 +1,8 @@
 #![cfg(feature = "paypal")]
 
 use payrail::{
-    CapturablePaymentConnector, CaptureRequest, IdempotencyKey, Money, PaymentConnector,
-    PaymentMethod, PaymentProvider, ProviderReference, RefundRequest, WebhookRequest,
+    CaptureRequest, IdempotencyKey, Money, PaymentMethod, PaymentProvider, ProviderReference,
+    RefundRequest, WebhookRequest,
 };
 use payrail::{PayPalConfig, PayPalConnector};
 use secrecy::SecretString;

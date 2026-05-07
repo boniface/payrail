@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{PaymentError, PaymentProvider, ProviderErrorDetails};
 use secrecy::ExposeSecret;
 use time::{Duration, OffsetDateTime};
@@ -7,7 +9,7 @@ use super::{config::PayPalConfig, models::TokenResponse};
 
 #[derive(Debug, Clone)]
 struct CachedToken {
-    access_token: String,
+    access_token: Arc<str>,
     expires_at: OffsetDateTime,
 }
 
@@ -22,7 +24,7 @@ impl TokenCache {
         &self,
         client: &reqwest::Client,
         config: &PayPalConfig,
-    ) -> Result<String, PaymentError> {
+    ) -> Result<Arc<str>, PaymentError> {
         if let Some(token) = self.current().await {
             return Ok(token);
         }
@@ -33,7 +35,7 @@ impl TokenCache {
         Ok(access_token)
     }
 
-    async fn current(&self) -> Option<String> {
+    async fn current(&self) -> Option<Arc<str>> {
         self.token.read().await.as_ref().and_then(|token| {
             (token.expires_at > OffsetDateTime::now_utc() + Duration::seconds(30))
                 .then(|| token.access_token.clone())
@@ -79,7 +81,7 @@ async fn fetch_token(
 
     let token = response.json::<TokenResponse>().await?;
     Ok(CachedToken {
-        access_token: token.access_token,
+        access_token: Arc::from(token.access_token),
         expires_at: OffsetDateTime::now_utc() + Duration::seconds(token.expires_in),
     })
 }

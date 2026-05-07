@@ -1,10 +1,11 @@
+use std::borrow::Cow;
+
 use crate::{
-    CreatePaymentRequest, MerchantReference, NextAction, PaymentConnector, PaymentError,
-    PaymentEvent, PaymentMethod, PaymentProvider, PaymentSession, PaymentStatusResponse,
-    ProviderErrorDetails, ProviderReference, RefundRequest, RefundResponse, StablecoinAsset,
-    StablecoinPaymentMethod, WebhookEventId, WebhookRequest,
+    CreatePaymentRequest, MerchantReference, NextAction, PaymentError, PaymentEvent, PaymentMethod,
+    PaymentProvider, PaymentSession, PaymentStatusResponse, ProviderErrorDetails,
+    ProviderReference, RefundRequest, RefundResponse, StablecoinAsset, StablecoinPaymentMethod,
+    WebhookEventId, WebhookRequest,
 };
-use async_trait::async_trait;
 use secrecy::ExposeSecret;
 use url::Url;
 
@@ -108,13 +109,18 @@ impl StripeConnector {
     }
 }
 
-#[async_trait]
-impl PaymentConnector for StripeConnector {
-    fn provider(&self) -> PaymentProvider {
+impl StripeConnector {
+    #[must_use]
+    pub const fn provider_id(&self) -> PaymentProvider {
         PaymentProvider::Stripe
     }
 
-    async fn create_payment(
+    /// Creates a Stripe checkout payment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the request cannot be mapped or Stripe rejects the request.
+    pub async fn create_payment(
         &self,
         request: CreatePaymentRequest,
     ) -> Result<PaymentSession, PaymentError> {
@@ -147,30 +153,30 @@ impl PaymentConnector for StripeConnector {
             .cancel_url()
             .ok_or(PaymentError::MissingRequiredField("cancel_url"))?;
         let description = request.description().unwrap_or("PayRail payment");
-        let form = vec![
-            ("mode".to_owned(), "payment".to_owned()),
-            ("success_url".to_owned(), return_url.as_str().to_owned()),
-            ("cancel_url".to_owned(), cancel_url.as_str().to_owned()),
+        let form: Vec<(&'static str, Cow<'_, str>)> = vec![
+            ("mode", Cow::Borrowed("payment")),
+            ("success_url", Cow::Borrowed(return_url.as_str())),
+            ("cancel_url", Cow::Borrowed(cancel_url.as_str())),
             (
-                "client_reference_id".to_owned(),
-                request.reference().as_str().to_owned(),
+                "client_reference_id",
+                Cow::Borrowed(request.reference().as_str()),
             ),
             (
-                "payment_method_types[0]".to_owned(),
-                payment_method_type.to_owned(),
+                "payment_method_types[0]",
+                Cow::Borrowed(payment_method_type),
             ),
-            ("line_items[0][quantity]".to_owned(), "1".to_owned()),
+            ("line_items[0][quantity]", Cow::Borrowed("1")),
             (
-                "line_items[0][price_data][currency]".to_owned(),
-                request.amount().currency().as_str().to_ascii_lowercase(),
-            ),
-            (
-                "line_items[0][price_data][unit_amount]".to_owned(),
-                request.amount().amount().value().to_string(),
+                "line_items[0][price_data][currency]",
+                Cow::Owned(request.amount().currency().as_str().to_ascii_lowercase()),
             ),
             (
-                "line_items[0][price_data][product_data][name]".to_owned(),
-                description.to_owned(),
+                "line_items[0][price_data][unit_amount]",
+                Cow::Owned(request.amount().amount().value().to_string()),
+            ),
+            (
+                "line_items[0][price_data][product_data][name]",
+                Cow::Borrowed(description),
             ),
         ];
         let mut builder = self
@@ -190,6 +196,7 @@ impl PaymentConnector for StripeConnector {
             "sending provider request"
         );
         let session: StripeCheckoutSession = self.parse_response(builder.send().await?).await?;
+        let reference = request.into_reference();
         let url = session
             .url
             .as_deref()
@@ -200,13 +207,18 @@ impl PaymentConnector for StripeConnector {
         PaymentSession::new(
             PaymentProvider::Stripe,
             ProviderReference::new(&session.id)?,
-            request.reference().clone(),
+            reference,
             map_payment_status(session.status.as_deref(), session.payment_status.as_deref()),
             url.map(|url| NextAction::RedirectToUrl { url }),
         )
     }
 
-    async fn get_payment_status(
+    /// Gets the Stripe payment status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when Stripe rejects the request or the response cannot be parsed.
+    pub async fn get_payment_status(
         &self,
         provider_reference: &ProviderReference,
     ) -> Result<PaymentStatusResponse, PaymentError> {
@@ -227,13 +239,23 @@ impl PaymentConnector for StripeConnector {
         })
     }
 
-    async fn refund_payment(&self, request: RefundRequest) -> Result<RefundResponse, PaymentError> {
+    /// Refunds a Stripe payment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the request cannot be mapped or Stripe rejects the request.
+    pub async fn refund_payment(
+        &self,
+        request: RefundRequest,
+    ) -> Result<RefundResponse, PaymentError> {
         let payment_intent = self
             .payment_intent_for_refund(&request.provider_reference)
             .await?;
-        let mut form = vec![("payment_intent".to_owned(), payment_intent)];
+        let mut form: Vec<(&'static str, Cow<'_, str>)> =
+            Vec::with_capacity(1 + usize::from(request.amount.is_some()));
+        form.push(("payment_intent", Cow::Owned(payment_intent)));
         if let Some(amount) = request.amount.as_ref() {
-            form.push(("amount".to_owned(), amount.amount().value().to_string()));
+            form.push(("amount", Cow::Owned(amount.amount().value().to_string())));
         }
         tracing::debug!(
             provider = "stripe",
@@ -260,7 +282,12 @@ impl PaymentConnector for StripeConnector {
         })
     }
 
-    async fn parse_webhook(
+    /// Parses and verifies a Stripe webhook.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when verification fails or the payload is invalid.
+    pub async fn parse_webhook(
         &self,
         request: WebhookRequest<'_>,
     ) -> Result<PaymentEvent, PaymentError> {

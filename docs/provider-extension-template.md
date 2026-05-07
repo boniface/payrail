@@ -2,114 +2,163 @@
 
 Use this template when proposing a new PayRail provider connector, crypto provider, Mobile Money
 rail, or aggregator adapter such as Circle, Coinbase, Bridge, Binance, MTN MoMo, M-Pesa, Airtel
-Money, Flutterwave, or another Lipila-like provider.
+Money, Flutterwave, Paystack, or another Lipila-like provider.
 
-## Architecture Fit
+## Current Extension Model
 
-PayRail is intended to be easy to extend:
+PayRail uses static first-party dispatch:
 
-- `payrail` owns provider-neutral types, errors, idempotency, webhooks, connector traits, and
+- `payrail` owns provider-neutral types, errors, idempotency, webhooks, route configuration, and
   first-party provider implementations.
 - First-party providers live as internal modules behind feature flags, for example `stripe`,
   `paypal`, and `lipila`.
-- The facade crate routes provider-neutral `CreatePaymentRequest` values to configured connectors.
-- Capture is modeled as an optional capability through `CapturablePaymentConnector`.
-- Mobile Money routing is configurable with `PayRailBuilder::mobile_money_route(country, provider)`,
-  so a new aggregator can serve a country without changing core routing.
-- Crypto routing is configurable with `PayRailBuilder::crypto_route(provider)` plus more specific
-  asset/network routes, so providers such as Circle, Coinbase, Bridge, or Binance can be added
-  without changing core routing.
+- The facade routes provider-neutral requests to concrete connector fields. There is no runtime
+  trait-object connector registry.
+- Route configuration uses `BuiltinProvider`, which is cheap to copy and suitable for hot paths.
+- `PaymentProvider::Other(...)` is metadata for normalized provider references and events. It is not
+  accepted by route configuration APIs.
 
-The default Zambia Mobile Money route is Lipila. A custom provider or aggregator can override it:
+Route configuration and connector availability are separate. A route can resolve to a modeled
+provider such as `BuiltinProvider::Coinbase`, but payment execution returns `ConnectorNotConfigured`
+until a matching first-party connector exists and is configured.
+
+## Current Provider Matrix
+
+| Provider | Status | Route target | Connector feature |
+| --- | --- | --- | --- |
+| Stripe | Implemented | `BuiltinProvider::Stripe` | `stripe` |
+| PayPal | Implemented | `BuiltinProvider::PayPal` | `paypal` |
+| Lipila | Implemented | `BuiltinProvider::Lipila` | `lipila` |
+| Circle | Reserved crypto target | `BuiltinProvider::Circle` | Not implemented |
+| Coinbase | Reserved crypto target | `BuiltinProvider::Coinbase` | Not implemented |
+| Bridge | Reserved crypto target | `BuiltinProvider::Bridge` | Not implemented |
+| Binance | Reserved crypto target | `BuiltinProvider::Binance` | Not implemented |
+| MTN MoMo, M-Pesa, Airtel Money, Flutterwave, Paystack | Not modeled | Add a new `BuiltinProvider` variant | Not implemented |
+
+## Routing Rules
+
+Mobile Money routing is country-based. Lipila is the default Zambia route:
 
 ```rust
-use std::sync::Arc;
+use payrail::{BuiltinProvider, CountryCode, PayRail};
 
-use payrail::{
-    CountryCode, PayRail, PaymentProvider,
-};
-
-# async fn build_client(connector: Arc<dyn payrail::PaymentConnector>) -> Result<(), payrail::PaymentError> {
 let client = PayRail::builder()
-    .connector(connector)
-    .mobile_money_route(
-        CountryCode::new("ZM")?,
-        PaymentProvider::Other("flutterwave".to_owned()),
-    )
+    .mobile_money_route(CountryCode::new("ZM")?, BuiltinProvider::Lipila)
     .build()?;
-# Ok(())
-# }
 ```
 
-Stablecoin USDC Checkout defaults to Stripe for backward compatibility. Other stablecoins such as
-USDT require an explicit route, as do general crypto payments. This prevents accidentally sending
-unsupported assets such as USDT, BTC, or ETH to a provider that only supports hosted USDC Checkout:
+Do not document or configure a country route unless the selected provider supports that country.
+For example, MTN MoMo Ghana should be added as a first-party provider before documenting:
+
+```rust,ignore
+let client = PayRail::builder()
+    .mtn_momo(mtn_config)?
+    .mobile_money_route(CountryCode::new("GH")?, BuiltinProvider::MtnMomo)
+    .build()?;
+```
+
+Crypto routing precedence is:
+
+1. Asset + network route.
+2. Asset route.
+3. Network route.
+4. Default crypto route.
+
+Reserved crypto route targets can be used to validate route behavior before connector work, but
+successful payment execution requires the connector:
 
 ```rust
-use std::sync::Arc;
+use payrail::{BuiltinProvider, CryptoAsset, CryptoNetwork, PayRail, PaymentMethod};
 
-use payrail::{
-    CryptoAsset, CryptoNetwork, PayRail, PaymentProvider,
-};
-
-# async fn build_crypto_client(connector: Arc<dyn payrail::PaymentConnector>) -> Result<(), payrail::PaymentError> {
 let client = PayRail::builder()
-    .connector(connector)
-    .crypto_route(PaymentProvider::Coinbase)
-    .crypto_asset_route(CryptoAsset::Usdt, PaymentProvider::Binance)
+    .crypto_route(BuiltinProvider::Coinbase)
+    .crypto_asset_route(CryptoAsset::Usdt, BuiltinProvider::Binance)
+    .crypto_network_route(CryptoNetwork::Solana, BuiltinProvider::Bridge)
     .crypto_asset_network_route(
         CryptoAsset::Usdc,
         CryptoNetwork::Base,
-        PaymentProvider::Circle,
+        BuiltinProvider::Circle,
     )
     .build()?;
-# Ok(())
-# }
+
+let method = PaymentMethod::usdc_on(CryptoNetwork::Base);
 ```
 
-PayRail reserves dedicated provider variants for planned first-party crypto adapters such as
-`PaymentProvider::Circle`, `PaymentProvider::Coinbase`, `PaymentProvider::Bridge`, and
-`PaymentProvider::Binance`. External or experimental connectors should use
-`PaymentProvider::Other(name)`.
+## Adding A First-Party Provider
+
+First-party providers should be added as feature-gated modules inside the `payrail` crate:
+
+```text
+crates/payrail/src/providers/provider_name/
+  mod.rs
+  config.rs
+  client.rs
+  mapper.rs
+  models.rs
+  webhook.rs
+crates/payrail/tests/provider_name_mock_backend.rs
+```
+
+Optional modules:
+
+- `auth.rs` for OAuth or token caching.
+- `quote.rs` for crypto quotes, fees, or exchange-rate lock payloads.
+- `collection.rs` for Mobile Money collection request construction.
+- `orders.rs` for checkout/order request construction.
+- `payout.rs` for providers that separate payment acceptance from settlement or payout.
+- `callback.rs` for callback payload normalization.
+
+Keep `mod.rs` minimal: module declarations and public re-exports only.
+
+Required code changes:
+
+- Add or reuse a `BuiltinProvider` variant in `crates/payrail/src/core/provider.rs`.
+- Add the matching `PaymentProvider` variant when public normalized responses need it.
+- Add a Cargo feature in `crates/payrail/Cargo.toml`.
+- Add a provider module under `crates/payrail/src/providers/` and re-export its public config and
+  connector.
+- Add a concrete optional connector field to `PaymentRouter`.
+- Add builder registration, for example `PayRailBuilder::mtn_momo(config)`.
+- Add static dispatch arms for create, status, refund, capture when supported, and webhooks.
+- Add route tests proving unsupported routes fail before provider I/O.
+- Add mocked backend integration tests for every provider HTTP operation.
+
+## Configuration Requirements
+
+- Store secrets as `secrecy::SecretString`.
+- Do not derive `Serialize` for secret-bearing config types.
+- Read secrets from environment variables in examples; never hard-code credentials.
+- Provide sandbox and production constructors when the provider has separate environments.
+- Reject production/live mode in debug/test builds unless `PAYRAIL_ALLOW_LIVE_TESTS=true`.
+- Use `reqwest::Client::builder().timeout(...)`.
+- Reject zero request timeouts.
+
+## Payment and Routing Requirements
+
+- Validate payment method, country, currency, asset, and network before sending provider requests.
+- Return `UnsupportedPaymentMethod`, `UnsupportedCountry`, `UnsupportedCurrency`, or
+  `UnsupportedPaymentRoute` before making an HTTP call.
+- Do not expose raw provider responses in public return types.
+- Do not include card numbers, wallet private keys, seed phrases, deposit private keys, raw wallet
+  credentials, or raw sensitive account data in any API.
+- Use `PaymentMethod::stablecoin(asset)` when the network does not matter.
+- Use `PaymentMethod::crypto(asset)` when the network does not matter.
+- Use `PaymentMethod::crypto_on(asset, network)`, `PaymentMethod::usdc_on(network)`, or
+  `PaymentMethod::usdt_on(network)` when network choice is part of the payment contract.
 
 ## Adding Stablecoin Support
 
-Stablecoin support is intentionally extensible. A new provider connector usually does not need a
-PayRail core change to support a new stablecoin:
-
-```rust
-use payrail::{
-    CryptoAsset, PaymentMethod, PaymentProvider, StablecoinAsset,
-};
-
-# fn example() -> Result<(), payrail::PaymentError> {
-let client = payrail::PayRail::builder()
-    .crypto_asset_route(
-        CryptoAsset::Other("eurc".to_owned()),
-        PaymentProvider::Other("stablecoin-provider".to_owned()),
-    )
-    .build()?;
-
-let method = PaymentMethod::stablecoin(StablecoinAsset::Other("eurc".to_owned()));
-# let _ = (client, method);
-# Ok(())
-# }
-```
-
 Use `StablecoinAsset::Other(symbol)` and `CryptoAsset::Other(symbol)` for provider-specific,
 experimental, regional, or newly launched stablecoins. Prefer lowercase canonical symbols in
-examples and tests unless the provider requires a different wire format; provider connectors should
-normalize to the provider's expected representation at the boundary.
+examples and tests unless the provider requires a different wire format.
 
 Add a first-class enum variant only when the asset is broadly supported or expected to be routed by
 many PayRail users. A first-class stablecoin contribution should update:
 
-- `StablecoinAsset` in PayRail core types.
-- `CryptoAsset` in PayRail core types when the asset can also be used with network-specific crypto
-  routing.
+- `StablecoinAsset`.
+- `CryptoAsset` when the asset can also be used with network-specific crypto routing.
 - The `From<&StablecoinAsset> for CryptoAsset` mapping.
-- Convenience constructors only when they improve ergonomics, for example
-  `PaymentMethod::stablecoin_usdt()` or `PaymentMethod::usdt_on(network)`.
+- Convenience constructors only when they improve ergonomics.
 - Router tests proving unsupported stablecoins do not fall through to Stripe.
 - Provider connector tests proving supported and unsupported assets are handled explicitly.
 - README and this extension template.
@@ -144,142 +193,6 @@ asset or asset+network routing unless the library later adds a provider-backed d
 - Provider docs URL:
 - Sandbox availability:
 - Production API availability:
-
-## Module Layout
-
-First-party providers should be added as feature-gated modules inside the `payrail` crate. External
-or experimental providers may live in separate crates that depend on `payrail`:
-
-```text
-crates/payrail/src/providers/provider_name/
-  mod.rs
-  config.rs
-  client.rs
-  mapper.rs
-  models.rs
-  webhook.rs
-crates/payrail/tests/provider_name_mock_backend.rs
-```
-
-Optional modules:
-
-- `auth.rs` for OAuth or token caching.
-- `quote.rs` for crypto quotes, fees, or exchange-rate lock payloads.
-- `collection.rs` for Mobile Money collection request construction.
-- `orders.rs` for checkout/order request construction.
-- `payout.rs` for providers that separate payment acceptance from settlement/payout.
-- `callback.rs` for callback payload normalization.
-
-Keep `mod.rs` minimal: module declarations and public re-exports only.
-
-## Required Connector Design
-
-Implement `PaymentConnector` for every provider:
-
-```rust
-#[async_trait::async_trait]
-impl payrail::PaymentConnector for ProviderConnector {
-    fn provider(&self) -> payrail::PaymentProvider {
-        payrail::PaymentProvider::Other("provider-name".to_owned())
-    }
-
-    async fn create_payment(
-        &self,
-        request: payrail::CreatePaymentRequest,
-    ) -> Result<payrail::PaymentSession, payrail::PaymentError> {
-        // Validate supported method/country/currency.
-        // Build provider request.
-        // Send request with timeout and redacted tracing.
-        // Return normalized PaymentSession.
-    }
-
-    async fn get_payment_status(
-        &self,
-        provider_reference: &payrail::ProviderReference,
-    ) -> Result<payrail::PaymentStatusResponse, payrail::PaymentError> {
-        // Return normalized status.
-    }
-
-    async fn refund_payment(
-        &self,
-        request: payrail::RefundRequest,
-    ) -> Result<payrail::RefundResponse, payrail::PaymentError> {
-        // Implement or return UnsupportedOperation.
-    }
-
-    async fn parse_webhook(
-        &self,
-        request: payrail::WebhookRequest<'_>,
-    ) -> Result<payrail::PaymentEvent, payrail::PaymentError> {
-        // Verify signature before parsing whenever provider supports signatures.
-    }
-}
-```
-
-If the provider supports capture, also implement `CapturablePaymentConnector`.
-
-## Configuration Requirements
-
-- Store secrets as `secrecy::SecretString`.
-- Do not derive `Serialize` for secret-bearing config types.
-- Read secrets from environment variables in examples; never hard-code credentials.
-- Provide sandbox and production constructors when the provider has separate environments.
-- Reject production/live mode in debug/test builds unless `PAYRAIL_ALLOW_LIVE_TESTS=true`.
-- Use `reqwest::Client::builder().timeout(...)`.
-- Reject zero request timeouts.
-
-## Payment and Routing Rules
-
-- Validate country and currency before sending provider requests.
-- For crypto providers, validate requested asset, network, fiat currency, settlement currency, and
-  hosted-checkout constraints before sending provider requests.
-- Return `UnsupportedPaymentMethod`, `UnsupportedCountry`, `UnsupportedCurrency`, or
-  `UnsupportedPaymentRoute` before making an HTTP call.
-- Do not expose raw provider responses in public return types.
-- Do not include card numbers, wallet private keys, seed phrases, deposit private keys, raw wallet
-  credentials, or raw sensitive account data in any API.
-- For Mobile Money, route countries explicitly from the facade:
-
-```rust
-let client = PayRail::builder()
-    .connector(Arc::new(provider_connector))
-    .mobile_money_route(CountryCode::new("KE")?, PaymentProvider::Other("mpesa".to_owned()))
-    .mobile_money_route(CountryCode::new("UG")?, PaymentProvider::Other("airtel".to_owned()))
-    .build()?;
-```
-
-An aggregator that supports several countries should document every route it expects applications
-to register.
-
-For crypto providers, route explicitly from the facade:
-
-```rust
-let client = PayRail::builder()
-    .connector(Arc::new(coinbase_connector))
-    .connector(Arc::new(circle_connector))
-    .crypto_route(PaymentProvider::Coinbase)
-    .crypto_asset_route(CryptoAsset::Usdt, PaymentProvider::Binance)
-    .crypto_network_route(CryptoNetwork::Solana, PaymentProvider::Bridge)
-    .crypto_asset_network_route(
-        CryptoAsset::Usdc,
-        CryptoNetwork::Base,
-        PaymentProvider::Circle,
-    )
-    .build()?;
-```
-
-Crypto route precedence is:
-
-1. Asset + network route.
-2. Asset route.
-3. Network route.
-4. Default crypto route.
-
-Use `PaymentMethod::stablecoin(asset)` for stablecoin checkout when the network does not matter,
-including `PaymentMethod::stablecoin_usdt()` for USDT. Use `PaymentMethod::crypto(asset)` for
-general crypto when the network does not matter. Use `PaymentMethod::crypto_on(asset, network)`,
-`PaymentMethod::usdc_on(network)`, or `PaymentMethod::usdt_on(network)` when network choice is part
-of the payment contract.
 
 ## Idempotency
 
@@ -354,6 +267,7 @@ Unit tests:
 - Webhook signature verification.
 - Idempotency header behavior.
 - Secret redaction behavior.
+- Router resolution and connector execution behavior.
 
 Mocked backend integration tests under a provider-specific file such as
 `crates/payrail/tests/provider_name_mock_backend.rs`:

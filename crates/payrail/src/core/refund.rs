@@ -37,6 +37,29 @@ pub struct RefundResponse {
     pub status: PaymentStatus,
 }
 
+impl RefundResponse {
+    /// Returns the provider handling the refund.
+    #[inline]
+    #[must_use]
+    pub const fn provider(&self) -> &PaymentProvider {
+        &self.provider
+    }
+
+    /// Returns the provider refund reference.
+    #[inline]
+    #[must_use]
+    pub const fn provider_reference(&self) -> &ProviderReference {
+        &self.provider_reference
+    }
+
+    /// Returns the normalized refund status.
+    #[inline]
+    #[must_use]
+    pub const fn status(&self) -> PaymentStatus {
+        self.status
+    }
+}
+
 /// Capture response.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaptureResponse {
@@ -46,6 +69,29 @@ pub struct CaptureResponse {
     pub provider_reference: ProviderReference,
     /// Normalized status after capture.
     pub status: PaymentStatus,
+}
+
+impl CaptureResponse {
+    /// Returns the provider handling the capture.
+    #[inline]
+    #[must_use]
+    pub const fn provider(&self) -> &PaymentProvider {
+        &self.provider
+    }
+
+    /// Returns the provider payment reference.
+    #[inline]
+    #[must_use]
+    pub const fn provider_reference(&self) -> &ProviderReference {
+        &self.provider_reference
+    }
+
+    /// Returns the normalized capture status.
+    #[inline]
+    #[must_use]
+    pub const fn status(&self) -> PaymentStatus {
+        self.status
+    }
 }
 
 #[cfg(test)]
