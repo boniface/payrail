@@ -104,3 +104,64 @@ pub enum PaymentEventType {
     /// Refund failed.
     RefundFailed,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn payment_event_accessors_return_normalized_fields() {
+        let amount = Money::new_minor(1_000, "USD").expect("money should be valid");
+        let event = PaymentEvent {
+            id: Some(WebhookEventId::new("evt_123").expect("event id should be valid")),
+            provider: PaymentProvider::Stripe,
+            provider_reference: ProviderReference::new("pi_123")
+                .expect("reference should be valid"),
+            merchant_reference: Some(
+                MerchantReference::new("ORDER-1").expect("reference should be valid"),
+            ),
+            status: PaymentStatus::Succeeded,
+            amount: Some(amount.clone()),
+            event_type: PaymentEventType::PaymentSucceeded,
+            message: Some("payment succeeded".to_owned()),
+        };
+
+        assert_eq!(
+            event.id().expect("event id should be present").as_str(),
+            "evt_123"
+        );
+        assert_eq!(event.provider(), &PaymentProvider::Stripe);
+        assert_eq!(event.provider_reference().as_str(), "pi_123");
+        assert_eq!(
+            event
+                .merchant_reference()
+                .expect("merchant reference should be present")
+                .as_str(),
+            "ORDER-1"
+        );
+        assert_eq!(event.status(), PaymentStatus::Succeeded);
+        assert_eq!(event.amount(), Some(&amount));
+        assert_eq!(event.event_type(), PaymentEventType::PaymentSucceeded);
+        assert_eq!(event.message(), Some("payment succeeded"));
+    }
+
+    #[test]
+    fn payment_event_accessors_handle_absent_optional_fields() {
+        let event = PaymentEvent {
+            id: None,
+            provider: PaymentProvider::PayPal,
+            provider_reference: ProviderReference::new("ORDER-1")
+                .expect("reference should be valid"),
+            merchant_reference: None,
+            status: PaymentStatus::Pending,
+            amount: None,
+            event_type: PaymentEventType::PaymentPending,
+            message: None,
+        };
+
+        assert!(event.id().is_none());
+        assert!(event.merchant_reference().is_none());
+        assert!(event.amount().is_none());
+        assert_eq!(event.message(), None);
+    }
+}

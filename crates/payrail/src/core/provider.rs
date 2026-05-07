@@ -88,3 +88,36 @@ impl From<BuiltinProvider> for PaymentProvider {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn built_in_providers_round_trip_to_payment_provider() {
+        let providers = [
+            (BuiltinProvider::Stripe, PaymentProvider::Stripe),
+            (BuiltinProvider::PayPal, PaymentProvider::PayPal),
+            (BuiltinProvider::Lipila, PaymentProvider::Lipila),
+            (BuiltinProvider::Circle, PaymentProvider::Circle),
+            (BuiltinProvider::Coinbase, PaymentProvider::Coinbase),
+            (BuiltinProvider::Bridge, PaymentProvider::Bridge),
+            (BuiltinProvider::Binance, PaymentProvider::Binance),
+        ];
+
+        providers
+            .into_iter()
+            .for_each(|(builtin, payment_provider)| {
+                assert_eq!(PaymentProvider::from(builtin), payment_provider);
+                assert_eq!(payment_provider.as_builtin(), Some(builtin));
+            });
+    }
+
+    #[test]
+    fn other_provider_is_metadata_not_builtin_route_target() {
+        let provider = PaymentProvider::other("mtn-momo");
+
+        assert_eq!(provider, PaymentProvider::Other("mtn-momo".to_owned()));
+        assert_eq!(provider.as_builtin(), None);
+    }
+}

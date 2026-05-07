@@ -119,4 +119,32 @@ mod tests {
         assert_eq!(refund.idempotency_key, key);
         assert_eq!(capture.provider, PaymentProvider::PayPal);
     }
+
+    #[test]
+    fn refund_response_accessors_return_normalized_fields() {
+        let response = RefundResponse {
+            provider: PaymentProvider::Stripe,
+            provider_reference: ProviderReference::new("re_123")
+                .expect("reference should be valid"),
+            status: PaymentStatus::Refunded,
+        };
+
+        assert_eq!(response.provider(), &PaymentProvider::Stripe);
+        assert_eq!(response.provider_reference().as_str(), "re_123");
+        assert_eq!(response.status(), PaymentStatus::Refunded);
+    }
+
+    #[test]
+    fn capture_response_accessors_return_normalized_fields() {
+        let response = CaptureResponse {
+            provider: PaymentProvider::PayPal,
+            provider_reference: ProviderReference::new("ORDER-1")
+                .expect("reference should be valid"),
+            status: PaymentStatus::Succeeded,
+        };
+
+        assert_eq!(response.provider(), &PaymentProvider::PayPal);
+        assert_eq!(response.provider_reference().as_str(), "ORDER-1");
+        assert_eq!(response.status(), PaymentStatus::Succeeded);
+    }
 }
