@@ -88,8 +88,9 @@ Route configuration and connector availability are separate:
 - Reserved crypto route targets: Circle, Coinbase, Bridge, and Binance. These are modeled provider
   IDs, but payments routed to them return `ConnectorNotConfigured` until first-party connectors are
   implemented and configured.
-- Unmodeled rails such as MTN MoMo, M-Pesa, Airtel Money, Flutterwave, or Paystack require a
-  first-party provider contribution before applications can route traffic to them.
+- Reserved Mobile Money and aggregator route targets: MTN MoMo, M-Pesa, Airtel Money, Flutterwave,
+  and Paystack. These are modeled provider IDs, but payments routed to them return
+  `ConnectorNotConfigured` until first-party connectors are implemented and configured.
 - `PaymentProvider::Other(...)` is metadata for normalized provider references and events. It is not
   a runtime routing extension point.
 
@@ -191,8 +192,8 @@ The workspace release gate is 90% line coverage. Core and security-sensitive mod
 - PayRail does not custody private keys, seed phrases, or raw wallet credentials.
 - PayPal refunds are not implemented in v1.
 - Lipila v1 exposes Zambia Mobile Money collections only.
-- Other Mobile Money providers such as MTN MoMo, M-Pesa, Airtel Money, or aggregators such as
-  Flutterwave are future first-party adapters over the shared Mobile Money abstractions.
+- MTN MoMo, M-Pesa, Airtel Money, Flutterwave, and Paystack are modeled route targets, but their
+  first-party connectors are not implemented yet.
 
 ## License
 
