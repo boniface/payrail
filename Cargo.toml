@@ -30,7 +30,7 @@ tracing = "0.1"
 url = { version = "2.5", features = ["serde"] }
 uuid = { version = "1.23", features = ["v4", "serde"] }
 wiremock = "0.6"
-criterion = "0.7"
+criterion = "0.8"
 
 [profile.release]
 codegen-units = 1
