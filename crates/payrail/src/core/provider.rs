@@ -29,6 +29,8 @@ pub enum BuiltinProvider {
     Flutterwave,
     /// Paystack. Reserved for a first-party aggregator connector.
     Paystack,
+    /// Orange Money Web Payment / M Payment. Reserved for a first-party Mobile Money connector.
+    OrangeMoney,
 }
 
 /// Supported payment providers.
@@ -59,6 +61,8 @@ pub enum PaymentProvider {
     Flutterwave,
     /// Paystack.
     Paystack,
+    /// Orange Money Web Payment / M Payment.
+    OrangeMoney,
     /// Provider metadata not modeled directly.
     ///
     /// This variant is for normalized provider/event metadata. It is not accepted by router
@@ -84,6 +88,7 @@ impl PaymentProvider {
             Self::AirtelMoney => Some(BuiltinProvider::AirtelMoney),
             Self::Flutterwave => Some(BuiltinProvider::Flutterwave),
             Self::Paystack => Some(BuiltinProvider::Paystack),
+            Self::OrangeMoney => Some(BuiltinProvider::OrangeMoney),
             Self::Other(_) => None,
         }
     }
@@ -115,6 +120,7 @@ impl From<BuiltinProvider> for PaymentProvider {
             BuiltinProvider::AirtelMoney => Self::AirtelMoney,
             BuiltinProvider::Flutterwave => Self::Flutterwave,
             BuiltinProvider::Paystack => Self::Paystack,
+            BuiltinProvider::OrangeMoney => Self::OrangeMoney,
         }
     }
 }
@@ -138,6 +144,7 @@ mod tests {
             (BuiltinProvider::AirtelMoney, PaymentProvider::AirtelMoney),
             (BuiltinProvider::Flutterwave, PaymentProvider::Flutterwave),
             (BuiltinProvider::Paystack, PaymentProvider::Paystack),
+            (BuiltinProvider::OrangeMoney, PaymentProvider::OrangeMoney),
         ];
 
         providers

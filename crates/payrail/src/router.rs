@@ -366,7 +366,8 @@ impl PaymentRouter {
             | BuiltinProvider::Mpesa
             | BuiltinProvider::AirtelMoney
             | BuiltinProvider::Flutterwave
-            | BuiltinProvider::Paystack => Err(Self::not_configured(provider)),
+            | BuiltinProvider::Paystack
+            | BuiltinProvider::OrangeMoney => Err(Self::not_configured(provider)),
         }
     }
 

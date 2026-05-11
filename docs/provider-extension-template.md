@@ -2,7 +2,7 @@
 
 Use this template when proposing a new PayRail provider connector, crypto provider, Mobile Money
 rail, or aggregator adapter such as Circle, Coinbase, Bridge, Binance, MTN MoMo, M-Pesa, Airtel
-Money, Flutterwave, Paystack, or another Lipila-like provider.
+Money, Orange Money, Flutterwave, Paystack, or another Lipila-like provider.
 
 ## Current Extension Model
 
@@ -36,6 +36,7 @@ returns `ConnectorNotConfigured` until a matching first-party connector exists a
 | MTN MoMo | Reserved Mobile Money target | `BuiltinProvider::MtnMomo` | Not implemented |
 | M-Pesa | Reserved Mobile Money target | `BuiltinProvider::Mpesa` | Not implemented |
 | Airtel Money | Reserved Mobile Money target | `BuiltinProvider::AirtelMoney` | Not implemented |
+| Orange Money Web Payment / M Payment | Reserved Mobile Money target | `BuiltinProvider::OrangeMoney` | Not implemented |
 | Flutterwave | Reserved aggregator target | `BuiltinProvider::Flutterwave` | Not implemented |
 | Paystack | Reserved aggregator target | `BuiltinProvider::Paystack` | Not implemented |
 
@@ -133,6 +134,7 @@ Reserved Mobile Money and aggregator targets already modeled in core:
 - `BuiltinProvider::MtnMomo` / `PaymentProvider::MtnMomo`
 - `BuiltinProvider::Mpesa` / `PaymentProvider::Mpesa`
 - `BuiltinProvider::AirtelMoney` / `PaymentProvider::AirtelMoney`
+- `BuiltinProvider::OrangeMoney` / `PaymentProvider::OrangeMoney`
 - `BuiltinProvider::Flutterwave` / `PaymentProvider::Flutterwave`
 - `BuiltinProvider::Paystack` / `PaymentProvider::Paystack`
 

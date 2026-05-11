@@ -6,8 +6,8 @@ All notable changes to PayRail are documented here.
 
 ### Added
 
-- Modeled MTN MoMo, M-Pesa, Airtel Money, Flutterwave, and Paystack as reserved built-in provider
-  route targets.
+- Modeled MTN MoMo, M-Pesa, Airtel Money, Orange Money, Flutterwave, and Paystack as reserved
+  built-in provider route targets.
 
 ## 0.1.3 - Released
 
