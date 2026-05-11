@@ -361,7 +361,13 @@ impl PaymentRouter {
             BuiltinProvider::Circle
             | BuiltinProvider::Coinbase
             | BuiltinProvider::Bridge
-            | BuiltinProvider::Binance => Err(Self::not_configured(provider)),
+            | BuiltinProvider::Binance
+            | BuiltinProvider::MtnMomo
+            | BuiltinProvider::Mpesa
+            | BuiltinProvider::AirtelMoney
+            | BuiltinProvider::Flutterwave
+            | BuiltinProvider::Paystack
+            | BuiltinProvider::OrangeMoney => Err(Self::not_configured(provider)),
         }
     }
 
@@ -461,7 +467,7 @@ mod tests {
         let mut router = PaymentRouter::new();
         router.route_mobile_money(
             CountryCode::new("ZM").expect("country should be valid"),
-            BuiltinProvider::Circle,
+            BuiltinProvider::MtnMomo,
         );
         let request = CreatePaymentRequest::builder()
             .amount(Money::new_minor(100, "ZMW").expect("money should be valid"))
@@ -476,7 +482,7 @@ mod tests {
         assert!(matches!(
             router.create_payment(request).await,
             Err(PaymentError::ConnectorNotConfigured {
-                provider: PaymentProvider::Circle
+                provider: PaymentProvider::MtnMomo
             })
         ));
     }

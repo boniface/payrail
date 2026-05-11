@@ -121,7 +121,7 @@ mod tests {
         let client = PayRailBuilder::default()
             .mobile_money_route(
                 crate::CountryCode::new("ZM").expect("country should be valid"),
-                BuiltinProvider::Circle,
+                BuiltinProvider::MtnMomo,
             )
             .build()
             .expect("client should build");
@@ -138,7 +138,7 @@ mod tests {
         assert!(matches!(
             client.create_payment(request).await,
             Err(PaymentError::ConnectorNotConfigured {
-                provider: PaymentProvider::Circle
+                provider: PaymentProvider::MtnMomo
             })
         ));
     }

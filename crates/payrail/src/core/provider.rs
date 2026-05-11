@@ -19,6 +19,18 @@ pub enum BuiltinProvider {
     Bridge,
     /// Binance. Reserved for a first-party crypto connector.
     Binance,
+    /// MTN MoMo. Reserved for a first-party Mobile Money connector.
+    MtnMomo,
+    /// M-Pesa. Reserved for a first-party Mobile Money connector.
+    Mpesa,
+    /// Airtel Money. Reserved for a first-party Mobile Money connector.
+    AirtelMoney,
+    /// Flutterwave. Reserved for a first-party aggregator connector.
+    Flutterwave,
+    /// Paystack. Reserved for a first-party aggregator connector.
+    Paystack,
+    /// Orange Money Web Payment / M Payment. Reserved for a first-party Mobile Money connector.
+    OrangeMoney,
 }
 
 /// Supported payment providers.
@@ -39,6 +51,18 @@ pub enum PaymentProvider {
     Bridge,
     /// Binance.
     Binance,
+    /// MTN MoMo.
+    MtnMomo,
+    /// M-Pesa.
+    Mpesa,
+    /// Airtel Money.
+    AirtelMoney,
+    /// Flutterwave.
+    Flutterwave,
+    /// Paystack.
+    Paystack,
+    /// Orange Money Web Payment / M Payment.
+    OrangeMoney,
     /// Provider metadata not modeled directly.
     ///
     /// This variant is for normalized provider/event metadata. It is not accepted by router
@@ -59,6 +83,12 @@ impl PaymentProvider {
             Self::Coinbase => Some(BuiltinProvider::Coinbase),
             Self::Bridge => Some(BuiltinProvider::Bridge),
             Self::Binance => Some(BuiltinProvider::Binance),
+            Self::MtnMomo => Some(BuiltinProvider::MtnMomo),
+            Self::Mpesa => Some(BuiltinProvider::Mpesa),
+            Self::AirtelMoney => Some(BuiltinProvider::AirtelMoney),
+            Self::Flutterwave => Some(BuiltinProvider::Flutterwave),
+            Self::Paystack => Some(BuiltinProvider::Paystack),
+            Self::OrangeMoney => Some(BuiltinProvider::OrangeMoney),
             Self::Other(_) => None,
         }
     }
@@ -85,6 +115,12 @@ impl From<BuiltinProvider> for PaymentProvider {
             BuiltinProvider::Coinbase => Self::Coinbase,
             BuiltinProvider::Bridge => Self::Bridge,
             BuiltinProvider::Binance => Self::Binance,
+            BuiltinProvider::MtnMomo => Self::MtnMomo,
+            BuiltinProvider::Mpesa => Self::Mpesa,
+            BuiltinProvider::AirtelMoney => Self::AirtelMoney,
+            BuiltinProvider::Flutterwave => Self::Flutterwave,
+            BuiltinProvider::Paystack => Self::Paystack,
+            BuiltinProvider::OrangeMoney => Self::OrangeMoney,
         }
     }
 }
@@ -103,6 +139,12 @@ mod tests {
             (BuiltinProvider::Coinbase, PaymentProvider::Coinbase),
             (BuiltinProvider::Bridge, PaymentProvider::Bridge),
             (BuiltinProvider::Binance, PaymentProvider::Binance),
+            (BuiltinProvider::MtnMomo, PaymentProvider::MtnMomo),
+            (BuiltinProvider::Mpesa, PaymentProvider::Mpesa),
+            (BuiltinProvider::AirtelMoney, PaymentProvider::AirtelMoney),
+            (BuiltinProvider::Flutterwave, PaymentProvider::Flutterwave),
+            (BuiltinProvider::Paystack, PaymentProvider::Paystack),
+            (BuiltinProvider::OrangeMoney, PaymentProvider::OrangeMoney),
         ];
 
         providers

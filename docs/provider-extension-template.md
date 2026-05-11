@@ -2,7 +2,7 @@
 
 Use this template when proposing a new PayRail provider connector, crypto provider, Mobile Money
 rail, or aggregator adapter such as Circle, Coinbase, Bridge, Binance, MTN MoMo, M-Pesa, Airtel
-Money, Flutterwave, Paystack, or another Lipila-like provider.
+Money, Orange Money, Flutterwave, Paystack, or another Lipila-like provider.
 
 ## Current Extension Model
 
@@ -19,8 +19,8 @@ PayRail uses static first-party dispatch:
   accepted by route configuration APIs.
 
 Route configuration and connector availability are separate. A route can resolve to a modeled
-provider such as `BuiltinProvider::Coinbase`, but payment execution returns `ConnectorNotConfigured`
-until a matching first-party connector exists and is configured.
+provider such as `BuiltinProvider::Coinbase` or `BuiltinProvider::MtnMomo`, but payment execution
+returns `ConnectorNotConfigured` until a matching first-party connector exists and is configured.
 
 ## Current Provider Matrix
 
@@ -33,7 +33,12 @@ until a matching first-party connector exists and is configured.
 | Coinbase | Reserved crypto target | `BuiltinProvider::Coinbase` | Not implemented |
 | Bridge | Reserved crypto target | `BuiltinProvider::Bridge` | Not implemented |
 | Binance | Reserved crypto target | `BuiltinProvider::Binance` | Not implemented |
-| MTN MoMo, M-Pesa, Airtel Money, Flutterwave, Paystack | Not modeled | Add a new `BuiltinProvider` variant | Not implemented |
+| MTN MoMo | Reserved Mobile Money target | `BuiltinProvider::MtnMomo` | Not implemented |
+| M-Pesa | Reserved Mobile Money target | `BuiltinProvider::Mpesa` | Not implemented |
+| Airtel Money | Reserved Mobile Money target | `BuiltinProvider::AirtelMoney` | Not implemented |
+| Orange Money Web Payment / M Payment | Reserved Mobile Money target | `BuiltinProvider::OrangeMoney` | Not implemented |
+| Flutterwave | Reserved aggregator target | `BuiltinProvider::Flutterwave` | Not implemented |
+| Paystack | Reserved aggregator target | `BuiltinProvider::Paystack` | Not implemented |
 
 ## Routing Rules
 
@@ -48,7 +53,8 @@ let client = PayRail::builder()
 ```
 
 Do not document or configure a country route unless the selected provider supports that country.
-For example, MTN MoMo Ghana should be added as a first-party provider before documenting:
+For example, MTN MoMo Ghana already has a reserved route target, but it still needs a first-party
+connector before applications can execute payments through it:
 
 ```rust,ignore
 let client = PayRail::builder()
@@ -122,6 +128,18 @@ Required code changes:
 - Add static dispatch arms for create, status, refund, capture when supported, and webhooks.
 - Add route tests proving unsupported routes fail before provider I/O.
 - Add mocked backend integration tests for every provider HTTP operation.
+
+Reserved Mobile Money and aggregator targets already modeled in core:
+
+- `BuiltinProvider::MtnMomo` / `PaymentProvider::MtnMomo`
+- `BuiltinProvider::Mpesa` / `PaymentProvider::Mpesa`
+- `BuiltinProvider::AirtelMoney` / `PaymentProvider::AirtelMoney`
+- `BuiltinProvider::OrangeMoney` / `PaymentProvider::OrangeMoney`
+- `BuiltinProvider::Flutterwave` / `PaymentProvider::Flutterwave`
+- `BuiltinProvider::Paystack` / `PaymentProvider::Paystack`
+
+When implementing one of these providers, reuse the existing variants instead of adding another
+provider ID.
 
 ## Configuration Requirements
 
