@@ -1,4 +1,4 @@
-//! PayRail facade crate.
+//! `PayRail` facade crate.
 
 #![forbid(unsafe_code)]
 
@@ -31,7 +31,7 @@ pub use router::PaymentRouter;
 pub struct PayRail;
 
 impl PayRail {
-    /// Starts a PayRail client builder.
+    /// Starts a `PayRail` client builder.
     #[inline]
     pub fn builder() -> PayRailBuilder {
         PayRailBuilder::default()

@@ -4,8 +4,8 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::{
-    Customer, IdempotencyKey, MerchantReference, Money, NextAction, PaymentError, PaymentId,
-    PaymentMethod, PaymentProvider, PaymentStatus, ProviderReference,
+    CheckoutUiMode, Customer, IdempotencyKey, MerchantReference, Money, NextAction, PaymentError,
+    PaymentId, PaymentMethod, PaymentProvider, PaymentStatus, ProviderReference,
 };
 
 /// Request metadata.
@@ -22,6 +22,7 @@ pub struct CreatePaymentRequest {
     callback_url: Option<Url>,
     return_url: Option<Url>,
     cancel_url: Option<Url>,
+    checkout_ui_mode: CheckoutUiMode,
     idempotency_key: Option<IdempotencyKey>,
     metadata: Metadata,
 }
@@ -89,6 +90,13 @@ impl CreatePaymentRequest {
         self.cancel_url.as_ref()
     }
 
+    /// Returns the checkout UI mode.
+    #[inline]
+    #[must_use]
+    pub const fn checkout_ui_mode(&self) -> CheckoutUiMode {
+        self.checkout_ui_mode
+    }
+
     /// Returns the idempotency key.
     #[inline]
     #[must_use]
@@ -121,6 +129,7 @@ pub struct CreatePaymentRequestBuilder {
     callback_url: Option<Url>,
     return_url: Option<Url>,
     cancel_url: Option<Url>,
+    checkout_ui_mode: CheckoutUiMode,
     idempotency_key: Option<IdempotencyKey>,
     metadata: Metadata,
 }
@@ -190,6 +199,12 @@ impl CreatePaymentRequestBuilder {
         Ok(self)
     }
 
+    /// Sets the checkout UI mode.
+    pub const fn checkout_ui_mode(mut self, checkout_ui_mode: CheckoutUiMode) -> Self {
+        self.checkout_ui_mode = checkout_ui_mode;
+        self
+    }
+
     /// Sets the idempotency key.
     ///
     /// # Errors
@@ -227,6 +242,7 @@ impl CreatePaymentRequestBuilder {
             callback_url: self.callback_url,
             return_url: self.return_url,
             cancel_url: self.cancel_url,
+            checkout_ui_mode: self.checkout_ui_mode,
             idempotency_key: self.idempotency_key,
             metadata: self.metadata,
         })
@@ -240,7 +256,7 @@ fn parse_url(value: &str) -> Result<Url, PaymentError> {
 /// Normalized payment creation response.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PaymentSession {
-    /// PayRail payment ID.
+    /// `PayRail` payment ID.
     pub payment_id: PaymentId,
     /// Provider handling the payment.
     pub provider: PaymentProvider,
@@ -255,7 +271,7 @@ pub struct PaymentSession {
 }
 
 impl PaymentSession {
-    /// Creates a normalized session with a generated PayRail payment ID.
+    /// Creates a normalized session with a generated `PayRail` payment ID.
     ///
     /// # Errors
     ///
@@ -277,7 +293,7 @@ impl PaymentSession {
         })
     }
 
-    /// Returns the PayRail payment ID.
+    /// Returns the `PayRail` payment ID.
     #[inline]
     #[must_use]
     pub const fn payment_id(&self) -> &PaymentId {
@@ -381,6 +397,7 @@ mod tests {
             .expect("url should be valid")
             .cancel_url("https://example.com/cancel")
             .expect("url should be valid")
+            .checkout_ui_mode(CheckoutUiMode::Elements)
             .idempotency_key("ORDER-1:create")
             .expect("key should be valid")
             .metadata("cart", "primary")
@@ -399,6 +416,7 @@ mod tests {
         assert!(request.callback_url().is_some());
         assert!(request.return_url().is_some());
         assert!(request.cancel_url().is_some());
+        assert_eq!(request.checkout_ui_mode(), CheckoutUiMode::Elements);
         assert_eq!(
             request
                 .idempotency_key()
@@ -413,6 +431,19 @@ mod tests {
                 .expect("metadata should exist"),
             "primary"
         );
+    }
+
+    #[test]
+    fn builder_defaults_to_hosted_checkout() {
+        let request = CreatePaymentRequest::builder()
+            .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
+            .reference("ORDER-1")
+            .expect("reference should be valid")
+            .payment_method(PaymentMethod::card())
+            .build()
+            .expect("request should be valid");
+
+        assert_eq!(request.checkout_ui_mode(), CheckoutUiMode::Hosted);
     }
 
     #[test]

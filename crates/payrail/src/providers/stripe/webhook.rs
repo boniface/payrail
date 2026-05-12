@@ -10,7 +10,7 @@ use time::OffsetDateTime;
 type HmacSha256 = Hmac<Sha256>;
 const SIGNATURE_TOLERANCE_SECONDS: i64 = 300;
 
-pub(crate) fn verify_signature(
+pub(super) fn verify_signature(
     payload: &[u8],
     signature_header: &str,
     secret: &SecretString,
@@ -72,9 +72,9 @@ fn signature_values<'a>(header: &'a str, key: &str) -> Vec<&'a str> {
 
 fn hex_encode(bytes: &[u8]) -> String {
     let mut output = String::with_capacity(bytes.len() * 2);
-    bytes.iter().for_each(|byte| {
+    for byte in bytes {
         let _ = write!(output, "{byte:02x}");
-    });
+    }
     output
 }
 

@@ -1,31 +1,30 @@
 use crate::{PaymentEventType, PaymentStatus};
 
-pub(crate) fn map_payment_status(
+pub(super) fn map_payment_status(
     status: Option<&str>,
     payment_status: Option<&str>,
 ) -> PaymentStatus {
     match payment_status.or(status) {
         Some("paid" | "succeeded" | "complete") => PaymentStatus::Succeeded,
         Some("unpaid" | "open" | "requires_payment_method") => PaymentStatus::RequiresAction,
-        Some("processing") => PaymentStatus::Processing,
         Some("requires_capture") => PaymentStatus::Authorized,
         Some("canceled" | "cancelled") => PaymentStatus::Cancelled,
         Some("expired") => PaymentStatus::Expired,
         Some("refunded") => PaymentStatus::Refunded,
         Some("partially_refunded") => PaymentStatus::PartiallyRefunded,
-        Some(_) | None => PaymentStatus::Processing,
+        Some("processing" | _) | None => PaymentStatus::Processing,
     }
 }
 
-pub(crate) fn map_refund_status(status: Option<&str>) -> PaymentStatus {
+pub(super) fn map_refund_status(status: Option<&str>) -> PaymentStatus {
     match status {
         Some("succeeded") => PaymentStatus::Refunded,
         Some("failed" | "canceled") => PaymentStatus::Failed,
-        Some("pending") | Some("requires_action") | Some(_) | None => PaymentStatus::Processing,
+        Some("pending" | "requires_action" | _) | None => PaymentStatus::Processing,
     }
 }
 
-pub(crate) fn map_event_type(event_type: &str) -> (PaymentEventType, PaymentStatus) {
+pub(super) fn map_event_type(event_type: &str) -> (PaymentEventType, PaymentStatus) {
     match event_type {
         "checkout.session.completed" | "payment_intent.succeeded" => {
             (PaymentEventType::PaymentSucceeded, PaymentStatus::Succeeded)

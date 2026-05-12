@@ -1,44 +1,44 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct TokenResponse {
-    pub access_token: String,
-    pub expires_in: i64,
+pub(super) struct TokenResponse {
+    pub(super) access_token: String,
+    pub(super) expires_in: i64,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct PayPalOrder {
-    pub id: String,
-    pub status: String,
+pub(super) struct PayPalOrder {
+    pub(super) id: String,
+    pub(super) status: String,
     #[serde(default)]
-    pub links: Vec<PayPalLink>,
+    pub(super) links: Vec<PayPalLink>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct PayPalLink {
-    pub href: String,
-    pub rel: String,
+pub(super) struct PayPalLink {
+    pub(super) href: String,
+    pub(super) rel: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct PayPalWebhookEvent {
-    pub id: Option<String>,
-    pub event_type: String,
-    pub resource: serde_json::Value,
+pub(super) struct PayPalWebhookEvent {
+    pub(super) id: Option<String>,
+    pub(super) event_type: String,
+    pub(super) resource: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
-pub(crate) struct VerifyWebhookSignatureRequest<'a> {
-    pub auth_algo: &'a str,
-    pub cert_url: &'a str,
-    pub transmission_id: &'a str,
-    pub transmission_sig: &'a str,
-    pub transmission_time: &'a str,
-    pub webhook_id: &'a str,
-    pub webhook_event: serde_json::Value,
+pub(super) struct VerifyWebhookSignatureRequest<'a> {
+    pub(super) auth_algo: &'a str,
+    pub(super) cert_url: &'a str,
+    pub(super) transmission_id: &'a str,
+    pub(super) transmission_sig: &'a str,
+    pub(super) transmission_time: &'a str,
+    pub(super) webhook_id: &'a str,
+    pub(super) webhook_event: serde_json::Value,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct VerifyWebhookSignatureResponse {
-    pub verification_status: String,
+pub(super) struct VerifyWebhookSignatureResponse {
+    pub(super) verification_status: String,
 }

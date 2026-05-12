@@ -5,6 +5,10 @@ use crate::PaymentError;
 pub struct CountryCode(String);
 
 impl CountryCode {
+    pub(crate) fn zambia() -> Self {
+        Self("ZM".to_owned())
+    }
+
     /// Parses and validates an ISO 3166-1 alpha-2 country code.
     ///
     /// # Errors
@@ -51,5 +55,10 @@ mod tests {
             CountryCode::new("ZMB"),
             Err(PaymentError::InvalidCountryCode(_))
         ));
+    }
+
+    #[test]
+    fn zambia_returns_zm_code() {
+        assert_eq!(CountryCode::zambia().as_str(), "ZM");
     }
 }

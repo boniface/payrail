@@ -2,8 +2,8 @@
 
 use hmac::{Hmac, KeyInit, Mac};
 use payrail::{
-    IdempotencyKey, Money, PaymentError, PaymentMethod, PaymentProvider, RefundRequest,
-    WebhookRequest,
+    CheckoutUiMode, IdempotencyKey, Money, NextAction, PaymentError, PaymentMethod,
+    PaymentProvider, RefundRequest, WebhookRequest,
 };
 use payrail::{StripeConfig, StripeConnector};
 use secrecy::SecretString;
@@ -100,6 +100,49 @@ async fn stripe_mock_backend_covers_payment_status_refund_and_webhook() {
     assert_eq!(status.status, payrail::PaymentStatus::Succeeded);
     assert_eq!(refund.provider_reference.as_str(), "re_123");
     assert_eq!(event.provider_reference.as_str(), "pi_123");
+}
+
+#[tokio::test]
+async fn stripe_mock_backend_covers_embedded_checkout_session() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/checkout/sessions"))
+        .and(header("authorization", "Bearer sk_test_payrail"))
+        .and(body_string_contains("ui_mode=elements"))
+        .and(body_string_contains("return_url="))
+        .and(body_string_contains("payment_method_types%5B0%5D=card"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": "cs_test_elements_123",
+            "client_secret": "cs_test_elements_123_secret_payrail",
+            "payment_status": "unpaid",
+            "status": "open"
+        })))
+        .mount(&server)
+        .await;
+    let connector = stripe_connector(&server, None);
+    let request = payrail::CreatePaymentRequest::builder()
+        .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
+        .reference("ORDER-EMBEDDED")
+        .expect("reference should be valid")
+        .payment_method(PaymentMethod::card())
+        .checkout_ui_mode(CheckoutUiMode::Elements)
+        .return_url("https://example.com/stripe/return?session_id={CHECKOUT_SESSION_ID}")
+        .expect("return url should be valid")
+        .build()
+        .expect("request should be valid");
+
+    let session = connector
+        .create_payment(request)
+        .await
+        .expect("session should be created");
+
+    assert_eq!(session.provider_reference.as_str(), "cs_test_elements_123");
+    assert_eq!(
+        session.next_action,
+        Some(NextAction::EmbeddedCheckout {
+            client_secret: "cs_test_elements_123_secret_payrail".to_owned()
+        })
+    );
 }
 
 #[tokio::test]

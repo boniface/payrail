@@ -1,6 +1,6 @@
 use crate::{PaymentEventType, PaymentStatus};
 
-pub(crate) fn map_order_status(status: &str) -> PaymentStatus {
+pub(super) fn map_order_status(status: &str) -> PaymentStatus {
     match status {
         "CREATED" | "SAVED" => PaymentStatus::Created,
         "APPROVED" => PaymentStatus::Authorized,
@@ -11,7 +11,7 @@ pub(crate) fn map_order_status(status: &str) -> PaymentStatus {
     }
 }
 
-pub(crate) fn map_event(event_type: &str) -> (PaymentEventType, PaymentStatus) {
+pub(super) fn map_event(event_type: &str) -> (PaymentEventType, PaymentStatus) {
     match event_type {
         "CHECKOUT.ORDER.APPROVED" => (
             PaymentEventType::PaymentRequiresAction,

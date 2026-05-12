@@ -26,10 +26,7 @@ pub struct PaymentRouter {
 impl Default for PaymentRouter {
     fn default() -> Self {
         let mut mobile_money_routes = HashMap::new();
-        mobile_money_routes.insert(
-            CountryCode::new("ZM").expect("default country route should be valid"),
-            BuiltinProvider::Lipila,
-        );
+        mobile_money_routes.insert(CountryCode::zambia(), BuiltinProvider::Lipila);
         Self {
             #[cfg(feature = "stripe")]
             stripe: None,
@@ -61,7 +58,7 @@ impl std::fmt::Debug for PaymentRouter {
             .field("crypto_asset_routes", &self.crypto_asset_routes)
             .field("crypto_network_routes", &self.crypto_network_routes)
             .field("default_crypto_provider", &self.default_crypto_provider)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -109,7 +106,7 @@ impl PaymentRouter {
         self.stripe = Some(connector);
     }
 
-    /// Registers the built-in PayPal connector on the static dispatch path.
+    /// Registers the built-in `PayPal` connector on the static dispatch path.
     #[cfg(feature = "paypal")]
     pub(crate) fn register_paypal(&mut self, connector: crate::PayPalConnector) {
         self.paypal = Some(connector);
@@ -133,7 +130,7 @@ impl PaymentRouter {
     ///
     /// This updates route selection only. The selected provider must also have a configured
     /// connector before routed payment execution can succeed.
-    pub fn route_crypto(&mut self, provider: BuiltinProvider) {
+    pub const fn route_crypto(&mut self, provider: BuiltinProvider) {
         self.default_crypto_provider = Some(provider);
     }
 
@@ -427,7 +424,7 @@ impl PaymentRouter {
             .or(self.default_crypto_provider)
     }
 
-    fn uses_stripe_default_stablecoin(asset: Option<&StablecoinAsset>) -> bool {
+    const fn uses_stripe_default_stablecoin(asset: Option<&StablecoinAsset>) -> bool {
         matches!(asset, None | Some(StablecoinAsset::Usdc))
     }
 

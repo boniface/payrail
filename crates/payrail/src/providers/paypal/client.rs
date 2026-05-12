@@ -16,7 +16,7 @@ use super::{
     webhook::parse_event,
 };
 
-/// PayPal PayRail connector.
+/// `PayPal` `PayRail` connector.
 #[derive(Debug)]
 pub struct PayPalConnector {
     config: PayPalConfig,
@@ -35,7 +35,7 @@ impl Clone for PayPalConnector {
 }
 
 impl PayPalConnector {
-    /// Creates a PayPal connector.
+    /// Creates a `PayPal` connector.
     ///
     /// # Errors
     ///
@@ -132,11 +132,11 @@ impl PayPalConnector {
         PaymentProvider::PayPal
     }
 
-    /// Creates a PayPal order.
+    /// Creates a `PayPal` order.
     ///
     /// # Errors
     ///
-    /// Returns an error when the request cannot be mapped or PayPal rejects the request.
+    /// Returns an error when the request cannot be mapped or `PayPal` rejects the request.
     pub async fn create_payment(
         &self,
         request: CreatePaymentRequest,
@@ -176,11 +176,11 @@ impl PayPalConnector {
         )
     }
 
-    /// Gets the PayPal payment status.
+    /// Gets the `PayPal` payment status.
     ///
     /// # Errors
     ///
-    /// Returns an error when PayPal rejects the request or the response cannot be parsed.
+    /// Returns an error when `PayPal` rejects the request or the response cannot be parsed.
     pub async fn get_payment_status(
         &self,
         provider_reference: &ProviderReference,
@@ -209,11 +209,11 @@ impl PayPalConnector {
         })
     }
 
-    /// Refunds a PayPal payment.
+    /// Refunds a `PayPal` payment.
     ///
     /// # Errors
     ///
-    /// Returns an error because PayPal refunds are not implemented yet.
+    /// Returns an error because `PayPal` refunds are not implemented yet.
     pub async fn refund_payment(
         &self,
         _request: RefundRequest,
@@ -223,7 +223,7 @@ impl PayPalConnector {
         ))
     }
 
-    /// Parses and verifies a PayPal webhook.
+    /// Parses and verifies a `PayPal` webhook.
     ///
     /// # Errors
     ///
@@ -244,11 +244,11 @@ impl PayPalConnector {
 }
 
 impl PayPalConnector {
-    /// Captures a PayPal order.
+    /// Captures a `PayPal` order.
     ///
     /// # Errors
     ///
-    /// Returns an error when PayPal rejects the capture request.
+    /// Returns an error when `PayPal` rejects the capture request.
     pub async fn capture_payment(
         &self,
         request: CaptureRequest,

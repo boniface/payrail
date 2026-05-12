@@ -13,7 +13,7 @@ impl<'a> WebhookRequest<'a> {
     /// Creates a webhook request.
     #[inline]
     #[must_use]
-    pub fn new(payload: &'a [u8], headers: HeaderMap) -> Self {
+    pub const fn new(payload: &'a [u8], headers: HeaderMap) -> Self {
         Self { payload, headers }
     }
 }

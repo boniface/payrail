@@ -6,7 +6,7 @@ use crate::{
 
 use crate::PaymentRouter;
 
-/// PayRail facade client.
+/// `PayRail` facade client.
 #[derive(Debug, Clone)]
 pub struct PayRailClient {
     router: PaymentRouter,

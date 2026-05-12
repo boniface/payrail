@@ -1,29 +1,30 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct StripeCheckoutSession {
-    pub id: String,
-    pub payment_intent: Option<String>,
-    pub url: Option<String>,
-    pub payment_status: Option<String>,
-    pub status: Option<String>,
+pub(super) struct StripeCheckoutSession {
+    pub(super) id: String,
+    pub(super) client_secret: Option<String>,
+    pub(super) payment_intent: Option<String>,
+    pub(super) url: Option<String>,
+    pub(super) payment_status: Option<String>,
+    pub(super) status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct StripeRefund {
-    pub id: String,
-    pub status: Option<String>,
+pub(super) struct StripeRefund {
+    pub(super) id: String,
+    pub(super) status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct StripeEvent {
-    pub id: String,
+pub(super) struct StripeEvent {
+    pub(super) id: String,
     #[serde(rename = "type")]
-    pub event_type: String,
-    pub data: StripeEventData,
+    pub(super) event_type: String,
+    pub(super) data: StripeEventData,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct StripeEventData {
-    pub object: serde_json::Value,
+pub(super) struct StripeEventData {
+    pub(super) object: serde_json::Value,
 }

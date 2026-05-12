@@ -10,7 +10,7 @@ pub enum PaymentMethod {
     Stablecoin(StablecoinPaymentMethod),
     /// Crypto payment.
     Crypto(CryptoPaymentMethod),
-    /// PayPal order.
+    /// `PayPal` order.
     PayPal(PayPalPaymentMethod),
     /// Mobile Money collection.
     MobileMoney(MobileMoneyPaymentMethod),
@@ -24,7 +24,7 @@ impl PaymentMethod {
         Self::Card(CardPaymentMethod)
     }
 
-    /// Creates a PayPal payment method.
+    /// Creates a `PayPal` payment method.
     #[inline]
     #[must_use]
     pub const fn paypal() -> Self {
@@ -34,7 +34,7 @@ impl PaymentMethod {
     /// Creates a stablecoin payment method for an asset.
     #[inline]
     #[must_use]
-    pub fn stablecoin(asset: StablecoinAsset) -> Self {
+    pub const fn stablecoin(asset: StablecoinAsset) -> Self {
         Self::Stablecoin(StablecoinPaymentMethod {
             preferred_asset: Some(asset),
         })
@@ -43,14 +43,14 @@ impl PaymentMethod {
     /// Creates a USDC stablecoin method.
     #[inline]
     #[must_use]
-    pub fn stablecoin_usdc() -> Self {
+    pub const fn stablecoin_usdc() -> Self {
         Self::stablecoin(StablecoinAsset::Usdc)
     }
 
     /// Creates a USDT stablecoin method.
     #[inline]
     #[must_use]
-    pub fn stablecoin_usdt() -> Self {
+    pub const fn stablecoin_usdt() -> Self {
         Self::stablecoin(StablecoinAsset::Usdt)
     }
 
@@ -106,7 +106,7 @@ impl PaymentMethod {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CardPaymentMethod;
 
-/// PayPal payment marker.
+/// `PayPal` payment marker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PayPalPaymentMethod;
 

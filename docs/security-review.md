@@ -34,6 +34,8 @@ This document records the baseline security posture for the `0.1.0` release cand
 
 - PayRail does not collect or transmit raw card numbers.
 - Stripe card and stablecoin flows use Stripe-hosted or Stripe-secure payment flows.
+- Stripe embedded Checkout returns a Checkout Session client secret for Stripe.js initialization;
+  provider connectors do not log this value.
 - Stripe stablecoin Checkout rejects non-USD line-item currencies and non-USDC stablecoin assets
   before sending provider requests, matching Stripe's current crypto Checkout requirements.
 - General crypto payments and non-USDC stablecoins require explicit provider routing before a
@@ -68,7 +70,7 @@ below that target require explicit review until additional negative-path tests r
 | --- | ---: | --- |
 | `payrail/src/providers/paypal/auth.rs` | 82.26% | OAuth success and failure are mock-tested; add token-cache expiry and malformed-token tests before stable release. |
 | `payrail/src/providers/paypal/client.rs` | 91.53% | Core order, idempotent capture, and webhook verification flows are mock-tested; add provider-error and malformed-response tests for every operation before stable release. |
-| `payrail/src/providers/stripe/client.rs` | 84.51% | Checkout, idempotent refund, session-to-payment-intent refund resolution, status, and webhook flows are mock-tested; add missing-field and provider-error tests before stable release. |
+| `payrail/src/providers/stripe/client.rs` | 92.00% | Hosted Checkout, embedded Checkout, idempotent refund, session-to-payment-intent refund resolution, status, and webhook flows are mock-tested; add provider-error tests before stable release. |
 | `payrail/src/providers/lipila/client.rs` | 89.60% | Collection, status, and webhook flows are mock-tested; add status-error and malformed-response tests before stable release. |
 
 ## Hardening Evidence

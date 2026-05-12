@@ -3,7 +3,7 @@ use serde_json::Number;
 
 use super::models::LipilaMobileMoneyCollectionRequest;
 
-pub(crate) fn collection_request(
+pub(super) fn collection_request(
     request: &CreatePaymentRequest,
 ) -> Result<LipilaMobileMoneyCollectionRequest, PaymentError> {
     let phone = match request.payment_method() {

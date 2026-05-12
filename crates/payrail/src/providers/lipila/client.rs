@@ -15,7 +15,7 @@ use super::{
     webhook::verify_signature,
 };
 
-/// Lipila PayRail connector.
+/// Lipila `PayRail` connector.
 #[derive(Debug, Clone)]
 pub struct LipilaConnector {
     config: LipilaConfig,

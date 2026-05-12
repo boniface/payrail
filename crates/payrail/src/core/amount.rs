@@ -11,7 +11,7 @@ impl MinorAmount {
     ///
     /// Returns an error when `value` is zero or negative.
     #[inline]
-    pub fn new(value: i64) -> Result<Self, PaymentError> {
+    pub const fn new(value: i64) -> Result<Self, PaymentError> {
         if value <= 0 {
             return Err(PaymentError::InvalidAmount(value));
         }

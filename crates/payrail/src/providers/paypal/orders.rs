@@ -2,7 +2,7 @@ use crate::{CreatePaymentRequest, PaymentError};
 use serde_json::json;
 use url::Url;
 
-pub(crate) fn approval_url(order: &super::models::PayPalOrder) -> Result<Url, PaymentError> {
+pub(super) fn approval_url(order: &super::models::PayPalOrder) -> Result<Url, PaymentError> {
     let href = order
         .links
         .iter()
@@ -15,7 +15,7 @@ pub(crate) fn approval_url(order: &super::models::PayPalOrder) -> Result<Url, Pa
     Url::parse(href).map_err(|error| PaymentError::InvalidUrl(error.to_string()))
 }
 
-pub(crate) fn create_order_body(request: &CreatePaymentRequest) -> serde_json::Value {
+pub(super) fn create_order_body(request: &CreatePaymentRequest) -> serde_json::Value {
     let return_url = request.return_url().map(Url::as_str);
     let cancel_url = request.cancel_url().map(Url::as_str);
     json!({

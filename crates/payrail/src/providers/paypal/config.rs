@@ -6,7 +6,7 @@ use url::Url;
 
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// PayPal environment.
+/// `PayPal` environment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PayPalEnvironment {
     /// Sandbox.
@@ -15,7 +15,7 @@ pub enum PayPalEnvironment {
     Production,
 }
 
-/// PayPal connector configuration.
+/// `PayPal` connector configuration.
 #[derive(Debug, Clone)]
 pub struct PayPalConfig {
     client_id: SecretString,
@@ -72,7 +72,7 @@ impl PayPalConfig {
         })
     }
 
-    /// Sets the PayPal webhook ID required for webhook signature verification.
+    /// Sets the `PayPal` webhook ID required for webhook signature verification.
     ///
     /// # Errors
     ///

@@ -1,52 +1,52 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
-pub(crate) struct LipilaMobileMoneyCollectionRequest {
+pub(super) struct LipilaMobileMoneyCollectionRequest {
     #[serde(rename = "referenceId")]
-    pub reference_id: String,
-    pub amount: serde_json::Number,
-    pub narration: String,
+    pub(super) reference_id: String,
+    pub(super) amount: serde_json::Number,
+    pub(super) narration: String,
     #[serde(rename = "accountNumber")]
-    pub account_number: String,
-    pub currency: String,
+    pub(super) account_number: String,
+    pub(super) currency: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
+    pub(super) email: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct LipilaCollectionResponse {
+pub(super) struct LipilaCollectionResponse {
     #[serde(rename = "referenceId")]
-    pub reference_id: String,
-    pub currency: String,
-    pub amount: serde_json::Number,
+    pub(super) reference_id: String,
+    pub(super) currency: String,
+    pub(super) amount: serde_json::Number,
     #[serde(rename = "accountNumber")]
-    pub account_number: String,
-    pub status: String,
+    pub(super) account_number: String,
+    pub(super) status: String,
     #[serde(rename = "paymentType")]
-    pub payment_type: Option<String>,
+    pub(super) payment_type: Option<String>,
     #[serde(rename = "externalId")]
-    pub external_id: Option<String>,
-    pub identifier: Option<String>,
-    pub message: Option<String>,
+    pub(super) external_id: Option<String>,
+    pub(super) identifier: Option<String>,
+    pub(super) message: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct LipilaCallbackPayload {
+pub(super) struct LipilaCallbackPayload {
     #[serde(rename = "referenceId")]
-    pub reference_id: String,
-    pub currency: String,
-    pub amount: serde_json::Number,
+    pub(super) reference_id: String,
+    pub(super) currency: String,
+    pub(super) amount: serde_json::Number,
     #[serde(rename = "accountNumber")]
-    pub account_number: String,
-    pub status: String,
+    pub(super) account_number: String,
+    pub(super) status: String,
     #[serde(rename = "paymentType")]
-    pub payment_type: String,
+    pub(super) payment_type: String,
     #[serde(rename = "type")]
-    pub transaction_type: String,
+    pub(super) transaction_type: String,
     #[serde(rename = "ipAddress")]
-    pub ip_address: Option<String>,
-    pub identifier: Option<String>,
-    pub message: Option<String>,
+    pub(super) ip_address: Option<String>,
+    pub(super) identifier: Option<String>,
+    pub(super) message: Option<String>,
     #[serde(rename = "externalId")]
-    pub external_id: Option<String>,
+    pub(super) external_id: Option<String>,
 }

@@ -15,7 +15,7 @@ pub struct ProviderErrorDetails {
     pub message: String,
 }
 
-/// PayRail error type.
+/// `PayRail` error type.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PaymentError {

@@ -90,6 +90,10 @@ name = "stripe_checkout"
 required-features = ["stripe"]
 
 [[example]]
+name = "stripe_embedded_checkout"
+required-features = ["stripe"]
+
+[[example]]
 name = "stripe_stablecoin_checkout"
 required-features = ["stripe"]
 
