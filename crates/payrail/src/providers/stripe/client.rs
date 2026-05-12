@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 
 use crate::{
-    CreatePaymentRequest, MerchantReference, NextAction, PaymentError, PaymentEvent, PaymentMethod,
-    PaymentProvider, PaymentSession, PaymentStatusResponse, ProviderErrorDetails,
-    ProviderReference, RefundRequest, RefundResponse, StablecoinAsset, StablecoinPaymentMethod,
-    WebhookEventId, WebhookRequest,
+    CheckoutUiMode, CreatePaymentRequest, MerchantReference, NextAction, PaymentError,
+    PaymentEvent, PaymentMethod, PaymentProvider, PaymentSession, PaymentStatusResponse,
+    ProviderErrorDetails, ProviderReference, RefundRequest, RefundResponse, StablecoinAsset,
+    StablecoinPaymentMethod, WebhookEventId, WebhookRequest,
 };
 use secrecy::ExposeSecret;
 use url::Url;
@@ -16,7 +16,7 @@ use super::{
     webhook::verify_signature,
 };
 
-/// Stripe PayRail connector.
+/// Stripe `PayRail` connector.
 #[derive(Debug, Clone)]
 pub struct StripeConnector {
     config: StripeConfig,
@@ -101,7 +101,7 @@ impl StripeConnector {
         .await
     }
 
-    fn supports_stablecoin(method: &StablecoinPaymentMethod) -> bool {
+    const fn supports_stablecoin(method: &StablecoinPaymentMethod) -> bool {
         matches!(
             method.preferred_asset.as_ref(),
             None | Some(StablecoinAsset::Usdc)
@@ -146,39 +146,8 @@ impl StripeConnector {
                 ));
             }
         };
-        let return_url = request
-            .return_url()
-            .ok_or(PaymentError::MissingRequiredField("return_url"))?;
-        let cancel_url = request
-            .cancel_url()
-            .ok_or(PaymentError::MissingRequiredField("cancel_url"))?;
-        let description = request.description().unwrap_or("PayRail payment");
-        let form: Vec<(&'static str, Cow<'_, str>)> = vec![
-            ("mode", Cow::Borrowed("payment")),
-            ("success_url", Cow::Borrowed(return_url.as_str())),
-            ("cancel_url", Cow::Borrowed(cancel_url.as_str())),
-            (
-                "client_reference_id",
-                Cow::Borrowed(request.reference().as_str()),
-            ),
-            (
-                "payment_method_types[0]",
-                Cow::Borrowed(payment_method_type),
-            ),
-            ("line_items[0][quantity]", Cow::Borrowed("1")),
-            (
-                "line_items[0][price_data][currency]",
-                Cow::Owned(request.amount().currency().as_str().to_ascii_lowercase()),
-            ),
-            (
-                "line_items[0][price_data][unit_amount]",
-                Cow::Owned(request.amount().amount().value().to_string()),
-            ),
-            (
-                "line_items[0][price_data][product_data][name]",
-                Cow::Borrowed(description),
-            ),
-        ];
+        let checkout_ui_mode = request.checkout_ui_mode();
+        let form = checkout_session_form(&request, payment_method_type)?;
         let mut builder = self
             .client
             .post(self.endpoint("/v1/checkout/sessions")?)
@@ -196,20 +165,23 @@ impl StripeConnector {
             "sending provider request"
         );
         let session: StripeCheckoutSession = self.parse_response(builder.send().await?).await?;
+        let StripeCheckoutSession {
+            id,
+            client_secret,
+            payment_intent: _,
+            url,
+            payment_status,
+            status,
+        } = session;
         let reference = request.into_reference();
-        let url = session
-            .url
-            .as_deref()
-            .map(Url::parse)
-            .transpose()
-            .map_err(|error| PaymentError::InvalidUrl(error.to_string()))?;
+        let next_action = checkout_next_action(checkout_ui_mode, url.as_deref(), client_secret)?;
 
         PaymentSession::new(
             PaymentProvider::Stripe,
-            ProviderReference::new(&session.id)?,
+            ProviderReference::new(&id)?,
             reference,
-            map_payment_status(session.status.as_deref(), session.payment_status.as_deref()),
-            url.map(|url| NextAction::RedirectToUrl { url }),
+            map_payment_status(status.as_deref(), payment_status.as_deref()),
+            next_action,
         )
     }
 
@@ -338,9 +310,82 @@ impl StripeConnector {
     }
 }
 
+fn checkout_session_form<'a>(
+    request: &'a CreatePaymentRequest,
+    payment_method_type: &'static str,
+) -> Result<Vec<(&'static str, Cow<'a, str>)>, PaymentError> {
+    let return_url = request
+        .return_url()
+        .ok_or(PaymentError::MissingRequiredField("return_url"))?;
+    let description = request.description().unwrap_or("PayRail payment");
+    let mut form = Vec::with_capacity(9);
+    form.push(("mode", Cow::Borrowed("payment")));
+    match request.checkout_ui_mode() {
+        CheckoutUiMode::Hosted => {
+            let cancel_url = request
+                .cancel_url()
+                .ok_or(PaymentError::MissingRequiredField("cancel_url"))?;
+            form.push(("success_url", Cow::Borrowed(return_url.as_str())));
+            form.push(("cancel_url", Cow::Borrowed(cancel_url.as_str())));
+        }
+        CheckoutUiMode::Elements => {
+            form.push(("ui_mode", Cow::Borrowed("elements")));
+            form.push(("return_url", Cow::Borrowed(return_url.as_str())));
+        }
+    }
+    form.extend([
+        (
+            "client_reference_id",
+            Cow::Borrowed(request.reference().as_str()),
+        ),
+        (
+            "payment_method_types[0]",
+            Cow::Borrowed(payment_method_type),
+        ),
+        ("line_items[0][quantity]", Cow::Borrowed("1")),
+        (
+            "line_items[0][price_data][currency]",
+            Cow::Owned(request.amount().currency().as_str().to_ascii_lowercase()),
+        ),
+        (
+            "line_items[0][price_data][unit_amount]",
+            Cow::Owned(request.amount().amount().value().to_string()),
+        ),
+        (
+            "line_items[0][price_data][product_data][name]",
+            Cow::Borrowed(description),
+        ),
+    ]);
+    Ok(form)
+}
+
+fn checkout_next_action(
+    checkout_ui_mode: CheckoutUiMode,
+    url: Option<&str>,
+    client_secret: Option<String>,
+) -> Result<Option<NextAction>, PaymentError> {
+    match checkout_ui_mode {
+        CheckoutUiMode::Hosted => url
+            .map(Url::parse)
+            .transpose()
+            .map(|url| url.map(|url| NextAction::RedirectToUrl { url }))
+            .map_err(|error| PaymentError::InvalidUrl(error.to_string())),
+        CheckoutUiMode::Elements => {
+            let client_secret = client_secret.ok_or_else(|| {
+                PaymentError::InvalidConfiguration(
+                    "stripe embedded checkout session has no client_secret".to_owned(),
+                )
+            })?;
+            Ok(Some(NextAction::EmbeddedCheckout { client_secret }))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{Money, PaymentMethod};
+    use std::fmt::Write;
+
+    use crate::{CheckoutUiMode, Money, PaymentMethod};
     use hmac::{Hmac, KeyInit, Mac};
     use secrecy::SecretString;
     use serde_json::json;
@@ -396,6 +441,150 @@ mod tests {
             session.next_action,
             Some(NextAction::RedirectToUrl { .. })
         ));
+    }
+
+    #[tokio::test]
+    async fn create_embedded_checkout_session_sends_elements_request() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/checkout/sessions"))
+            .and(header("authorization", "Bearer sk_test_payrail"))
+            .and(body_string_contains("ui_mode=elements"))
+            .and(body_string_contains("return_url="))
+            .and(body_string_contains("payment_method_types%5B0%5D=card"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "cs_test_elements_123",
+                "client_secret": "cs_test_elements_123_secret_payrail",
+                "payment_status": "unpaid",
+                "status": "open"
+            })))
+            .mount(&server)
+            .await;
+        let config = StripeConfig::new(SecretString::from("sk_test_payrail".to_owned()))
+            .expect("config should be valid")
+            .api_base(Url::parse(&server.uri()).expect("mock url should parse"));
+        let connector = StripeConnector::new(config).expect("connector should build");
+        let request = CreatePaymentRequest::builder()
+            .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
+            .reference("ORDER-1")
+            .expect("reference should be valid")
+            .payment_method(PaymentMethod::card())
+            .checkout_ui_mode(CheckoutUiMode::Elements)
+            .return_url("https://example.com/stripe/return?session_id={CHECKOUT_SESSION_ID}")
+            .expect("return url should be valid")
+            .build()
+            .expect("request should be valid");
+
+        let session = connector
+            .create_payment(request)
+            .await
+            .expect("session should be created");
+
+        assert_eq!(session.provider_reference.as_str(), "cs_test_elements_123");
+        assert_eq!(
+            session.next_action,
+            Some(NextAction::EmbeddedCheckout {
+                client_secret: "cs_test_elements_123_secret_payrail".to_owned()
+            })
+        );
+        let requests = server
+            .received_requests()
+            .await
+            .expect("request recording should be enabled");
+        let body = String::from_utf8_lossy(&requests[0].body);
+        assert!(!body.contains("cancel_url="));
+        assert!(!body.contains("success_url="));
+    }
+
+    #[tokio::test]
+    async fn embedded_checkout_requires_return_url() {
+        let server = MockServer::start().await;
+        let config = StripeConfig::new(SecretString::from("sk_test_payrail".to_owned()))
+            .expect("config should be valid")
+            .api_base(Url::parse(&server.uri()).expect("mock url should parse"));
+        let connector = StripeConnector::new(config).expect("connector should build");
+        let request = CreatePaymentRequest::builder()
+            .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
+            .reference("ORDER-1")
+            .expect("reference should be valid")
+            .payment_method(PaymentMethod::card())
+            .checkout_ui_mode(CheckoutUiMode::Elements)
+            .build()
+            .expect("request should be valid");
+
+        let error = connector
+            .create_payment(request)
+            .await
+            .expect_err("missing return url should fail");
+
+        assert!(matches!(
+            error,
+            PaymentError::MissingRequiredField("return_url")
+        ));
+    }
+
+    #[tokio::test]
+    async fn hosted_checkout_still_requires_cancel_url() {
+        let server = MockServer::start().await;
+        let config = StripeConfig::new(SecretString::from("sk_test_payrail".to_owned()))
+            .expect("config should be valid")
+            .api_base(Url::parse(&server.uri()).expect("mock url should parse"));
+        let connector = StripeConnector::new(config).expect("connector should build");
+        let request = CreatePaymentRequest::builder()
+            .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
+            .reference("ORDER-1")
+            .expect("reference should be valid")
+            .payment_method(PaymentMethod::card())
+            .return_url("https://example.com/success")
+            .expect("return url should be valid")
+            .build()
+            .expect("request should be valid");
+
+        let error = connector
+            .create_payment(request)
+            .await
+            .expect_err("missing cancel url should fail");
+
+        assert!(matches!(
+            error,
+            PaymentError::MissingRequiredField("cancel_url")
+        ));
+    }
+
+    #[tokio::test]
+    async fn embedded_checkout_requires_client_secret() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/checkout/sessions"))
+            .and(body_string_contains("ui_mode=elements"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "cs_test_elements_123",
+                "payment_status": "unpaid",
+                "status": "open"
+            })))
+            .mount(&server)
+            .await;
+        let config = StripeConfig::new(SecretString::from("sk_test_payrail".to_owned()))
+            .expect("config should be valid")
+            .api_base(Url::parse(&server.uri()).expect("mock url should parse"));
+        let connector = StripeConnector::new(config).expect("connector should build");
+        let request = CreatePaymentRequest::builder()
+            .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
+            .reference("ORDER-1")
+            .expect("reference should be valid")
+            .payment_method(PaymentMethod::card())
+            .checkout_ui_mode(CheckoutUiMode::Elements)
+            .return_url("https://example.com/stripe/return")
+            .expect("return url should be valid")
+            .build()
+            .expect("request should be valid");
+
+        let error = connector
+            .create_payment(request)
+            .await
+            .expect_err("missing client secret should fail");
+
+        assert!(matches!(error, PaymentError::InvalidConfiguration(_)));
     }
 
     #[tokio::test]
@@ -478,6 +667,10 @@ mod tests {
     }
 
     fn hex_for_test(bytes: &[u8]) -> String {
-        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+        let mut output = String::with_capacity(bytes.len() * 2);
+        for byte in bytes {
+            let _ = write!(output, "{byte:02x}");
+        }
+        output
     }
 }

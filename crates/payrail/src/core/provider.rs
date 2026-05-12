@@ -7,7 +7,7 @@
 pub enum BuiltinProvider {
     /// Stripe.
     Stripe,
-    /// PayPal.
+    /// `PayPal`.
     PayPal,
     /// Lipila.
     Lipila,
@@ -19,7 +19,7 @@ pub enum BuiltinProvider {
     Bridge,
     /// Binance. Reserved for a first-party crypto connector.
     Binance,
-    /// MTN MoMo. Reserved for a first-party Mobile Money connector.
+    /// MTN `MoMo`. Reserved for a first-party Mobile Money connector.
     MtnMomo,
     /// M-Pesa. Reserved for a first-party Mobile Money connector.
     Mpesa,
@@ -39,7 +39,7 @@ pub enum BuiltinProvider {
 pub enum PaymentProvider {
     /// Stripe.
     Stripe,
-    /// PayPal.
+    /// `PayPal`.
     PayPal,
     /// Lipila.
     Lipila,
@@ -51,7 +51,7 @@ pub enum PaymentProvider {
     Bridge,
     /// Binance.
     Binance,
-    /// MTN MoMo.
+    /// MTN `MoMo`.
     MtnMomo,
     /// M-Pesa.
     Mpesa,
@@ -71,7 +71,7 @@ pub enum PaymentProvider {
 }
 
 impl PaymentProvider {
-    /// Returns the built-in provider value when this is one of PayRail's modeled providers.
+    /// Returns the built-in provider value when this is one of `PayRail`'s modeled providers.
     #[inline]
     #[must_use]
     pub const fn as_builtin(&self) -> Option<BuiltinProvider> {
@@ -147,12 +147,10 @@ mod tests {
             (BuiltinProvider::OrangeMoney, PaymentProvider::OrangeMoney),
         ];
 
-        providers
-            .into_iter()
-            .for_each(|(builtin, payment_provider)| {
-                assert_eq!(PaymentProvider::from(builtin), payment_provider);
-                assert_eq!(payment_provider.as_builtin(), Some(builtin));
-            });
+        for (builtin, payment_provider) in providers {
+            assert_eq!(PaymentProvider::from(builtin), payment_provider);
+            assert_eq!(payment_provider.as_builtin(), Some(builtin));
+        }
     }
 
     #[test]

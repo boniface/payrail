@@ -1,4 +1,5 @@
 mod amount;
+mod checkout;
 mod config;
 mod country;
 mod currency;
@@ -18,6 +19,7 @@ mod status;
 mod webhook;
 
 pub use amount::MinorAmount;
+pub use checkout::CheckoutUiMode;
 pub use config::Environment;
 pub use country::CountryCode;
 pub use currency::CurrencyCode;

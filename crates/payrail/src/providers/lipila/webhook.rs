@@ -8,7 +8,7 @@ use time::OffsetDateTime;
 
 type HmacSha256 = Hmac<Sha256>;
 
-pub(crate) fn verify_signature(
+pub(super) fn verify_signature(
     id: &str,
     timestamp: &str,
     signatures: &str,

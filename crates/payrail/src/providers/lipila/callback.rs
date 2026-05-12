@@ -8,7 +8,7 @@ use super::{
     models::LipilaCallbackPayload,
 };
 
-pub(crate) fn parse_callback(payload: &[u8]) -> Result<PaymentEvent, PaymentError> {
+pub(super) fn parse_callback(payload: &[u8]) -> Result<PaymentEvent, PaymentError> {
     let callback: LipilaCallbackPayload = serde_json::from_slice(payload)?;
     let status = map_status(&callback.status);
     let _operator = map_payment_type(&callback.payment_type);

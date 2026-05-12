@@ -2,7 +2,14 @@
 
 All notable changes to PayRail are documented here.
 
-## 0.1.4 - Unreleased
+## 0.1.5 - Released
+
+### Added
+
+- Added Stripe embedded Checkout Sessions support through `CheckoutUiMode::Elements` and
+  `NextAction::EmbeddedCheckout`.
+
+## 0.1.4 - Released
 
 ### Added
 

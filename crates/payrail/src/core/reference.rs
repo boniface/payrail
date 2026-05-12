@@ -47,7 +47,7 @@ macro_rules! string_newtype {
 
 string_newtype!(MerchantReference, InvalidReference, "Merchant reference.");
 string_newtype!(ProviderReference, InvalidReference, "Provider reference.");
-string_newtype!(PaymentId, InvalidReference, "PayRail payment identifier.");
+string_newtype!(PaymentId, InvalidReference, "`PayRail` payment identifier.");
 string_newtype!(
     WebhookEventId,
     InvalidReference,

@@ -37,7 +37,7 @@ The default TLS backend is Rustls. Do not enable all providers unless the applic
 
 Common feature flags:
 
-- `stripe`: Stripe Checkout, status, refunds, and webhooks.
+- `stripe`: Stripe hosted and embedded Checkout, status, refunds, and webhooks.
 - `paypal`: PayPal Orders, OAuth, capture, and webhooks.
 - `lipila`: Lipila Zambia Mobile Money. This also enables `mobile-money`.
 - `mobile-money`: shared Mobile Money types and helpers.
@@ -73,6 +73,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("provider reference: {}", session.provider_reference.as_str());
 
     Ok(())
+}
+```
+
+### Stripe Embedded Checkout
+
+Hosted Checkout remains the default. For an on-site Stripe Payment Element flow, request
+`CheckoutUiMode::Elements` and pass the returned client secret to Stripe.js.
+
+```rust
+use payrail::{
+    CheckoutUiMode, CreatePaymentRequest, Money, NextAction, PaymentMethod,
+};
+
+let request = CreatePaymentRequest::builder()
+    .amount(Money::new_minor(2_500, "USD")?)
+    .reference("ORDER-1003")?
+    .payment_method(PaymentMethod::card())
+    .checkout_ui_mode(CheckoutUiMode::Elements)
+    .return_url("https://example.com/stripe/return?session_id={CHECKOUT_SESSION_ID}")?
+    .idempotency_key("ORDER-1003:create")?
+    .build()?;
+
+let session = client.create_payment(request).await?;
+
+if let Some(NextAction::EmbeddedCheckout { client_secret }) = session.next_action() {
+    let _client_secret_for_stripe_js = client_secret;
 }
 ```
 
@@ -185,6 +211,8 @@ The workspace release gate is 90% line coverage. Core and security-sensitive mod
 ## Provider Limitations
 
 - Stripe stablecoin support is delegated to Stripe-supported Checkout flows.
+- Stripe card payments support hosted Checkout by default and embedded Checkout Sessions with
+  `CheckoutUiMode::Elements`.
 - General crypto payments use provider-neutral `PaymentMethod::crypto` and explicit route
   registration for modeled providers such as Circle, Coinbase, Bridge, or Binance once their
   first-party connectors exist.

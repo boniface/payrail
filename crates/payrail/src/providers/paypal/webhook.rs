@@ -5,7 +5,7 @@ use crate::{
 
 use super::{mapper::map_event, models::PayPalWebhookEvent};
 
-pub(crate) fn parse_event(payload: &[u8]) -> Result<PaymentEvent, PaymentError> {
+pub(super) fn parse_event(payload: &[u8]) -> Result<PaymentEvent, PaymentError> {
     let event: PayPalWebhookEvent = serde_json::from_slice(payload)?;
     let (event_type, status) = map_event(&event.event_type);
     let provider_reference = event

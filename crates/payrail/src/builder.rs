@@ -32,7 +32,7 @@ impl PayRailBuilder {
     ///
     /// The selected provider must also have a connector registered by enabling and configuring its
     /// feature. Otherwise routed payments return `ConnectorNotConfigured`.
-    pub fn crypto_route(mut self, provider: BuiltinProvider) -> Self {
+    pub const fn crypto_route(mut self, provider: BuiltinProvider) -> Self {
         self.router.route_crypto(provider);
         self
     }
@@ -66,6 +66,10 @@ impl PayRailBuilder {
     }
 
     /// Registers Stripe.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the Stripe connector configuration is invalid.
     #[cfg(feature = "stripe")]
     pub fn stripe(mut self, config: crate::StripeConfig) -> Result<Self, PaymentError> {
         self.router
@@ -73,7 +77,11 @@ impl PayRailBuilder {
         Ok(self)
     }
 
-    /// Registers PayPal.
+    /// Registers `PayPal`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the `PayPal` connector configuration is invalid.
     #[cfg(feature = "paypal")]
     pub fn paypal(mut self, config: crate::PayPalConfig) -> Result<Self, PaymentError> {
         self.router
@@ -82,6 +90,10 @@ impl PayRailBuilder {
     }
 
     /// Registers Lipila.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the Lipila connector configuration is invalid.
     #[cfg(feature = "lipila")]
     pub fn lipila(mut self, config: crate::LipilaConfig) -> Result<Self, PaymentError> {
         self.router

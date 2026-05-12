@@ -15,12 +15,12 @@ struct CachedToken {
 
 /// OAuth token cache.
 #[derive(Debug, Default)]
-pub(crate) struct TokenCache {
+pub(super) struct TokenCache {
     token: RwLock<Option<CachedToken>>,
 }
 
 impl TokenCache {
-    pub(crate) async fn access_token(
+    pub(super) async fn access_token(
         &self,
         client: &reqwest::Client,
         config: &PayPalConfig,
@@ -30,7 +30,7 @@ impl TokenCache {
         }
 
         let token = fetch_token(client, config).await?;
-        let access_token = token.access_token.clone();
+        let access_token = Arc::<str>::clone(&token.access_token);
         *self.token.write().await = Some(token);
         Ok(access_token)
     }
@@ -38,7 +38,7 @@ impl TokenCache {
     async fn current(&self) -> Option<Arc<str>> {
         self.token.read().await.as_ref().and_then(|token| {
             (token.expires_at > OffsetDateTime::now_utc() + Duration::seconds(30))
-                .then(|| token.access_token.clone())
+                .then(|| Arc::<str>::clone(&token.access_token))
         })
     }
 }

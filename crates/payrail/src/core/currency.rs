@@ -54,7 +54,7 @@ impl CurrencyCode {
             return minor.to_string();
         }
 
-        let factor = self.minor_unit_factor() as u64;
+        let factor = self.minor_unit_factor().cast_unsigned();
         let sign = if minor < 0 { "-" } else { "" };
         let absolute = minor.unsigned_abs();
         let major = absolute / factor;

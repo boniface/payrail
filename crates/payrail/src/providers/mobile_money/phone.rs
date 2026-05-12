@@ -1,6 +1,6 @@
 use crate::{PaymentError, PhoneNumber};
 
-/// Normalizes a Zambia phone number to PayRail's E.164 representation.
+/// Normalizes a Zambia phone number to `PayRail`'s E.164 representation.
 ///
 /// # Errors
 ///

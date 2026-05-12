@@ -1,22 +1,21 @@
 use crate::{MobileMoneyOperator, PaymentEventType, PaymentStatus};
 
-pub(crate) fn map_status(status: &str) -> PaymentStatus {
+pub(super) fn map_status(status: &str) -> PaymentStatus {
     match status {
         "Pending" | "pending" => PaymentStatus::Pending,
         "Successful" | "successful" | "Success" | "success" => PaymentStatus::Succeeded,
         "Failed" | "failed" => PaymentStatus::Failed,
-        "Unknown" | "unknown" => PaymentStatus::Processing,
         _ => PaymentStatus::Processing,
     }
 }
 
-pub(crate) fn map_event_type(status: PaymentStatus) -> PaymentEventType {
+pub(super) const fn map_event_type(status: PaymentStatus) -> PaymentEventType {
     match status {
         PaymentStatus::Succeeded => PaymentEventType::PaymentSucceeded,
         PaymentStatus::Failed => PaymentEventType::PaymentFailed,
         PaymentStatus::Cancelled => PaymentEventType::PaymentCancelled,
-        PaymentStatus::Pending => PaymentEventType::PaymentPending,
-        PaymentStatus::Created
+        PaymentStatus::Pending
+        | PaymentStatus::Created
         | PaymentStatus::RequiresAction
         | PaymentStatus::Processing
         | PaymentStatus::Authorized
@@ -26,7 +25,7 @@ pub(crate) fn map_event_type(status: PaymentStatus) -> PaymentEventType {
     }
 }
 
-pub(crate) fn map_payment_type(payment_type: &str) -> MobileMoneyOperator {
+pub(super) fn map_payment_type(payment_type: &str) -> MobileMoneyOperator {
     match payment_type {
         "MtnMoney" | "MTNMoney" => MobileMoneyOperator::Mtn,
         "AirtelMoney" => MobileMoneyOperator::Airtel,
