@@ -25,6 +25,7 @@ pub struct CreatePaymentRequest {
     checkout_ui_mode: CheckoutUiMode,
     idempotency_key: Option<IdempotencyKey>,
     metadata: Metadata,
+    payment_metadata: Metadata,
 }
 
 impl CreatePaymentRequest {
@@ -104,11 +105,18 @@ impl CreatePaymentRequest {
         self.idempotency_key.as_ref()
     }
 
-    /// Returns metadata.
+    /// Returns checkout/session metadata.
     #[inline]
     #[must_use]
     pub const fn metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    /// Returns underlying payment object metadata.
+    #[inline]
+    #[must_use]
+    pub const fn payment_metadata(&self) -> &Metadata {
+        &self.payment_metadata
     }
 
     #[cfg(any(feature = "lipila", feature = "paypal", feature = "stripe"))]
@@ -132,6 +140,7 @@ pub struct CreatePaymentRequestBuilder {
     checkout_ui_mode: CheckoutUiMode,
     idempotency_key: Option<IdempotencyKey>,
     metadata: Metadata,
+    payment_metadata: Metadata,
 }
 
 impl CreatePaymentRequestBuilder {
@@ -215,9 +224,24 @@ impl CreatePaymentRequestBuilder {
         Ok(self)
     }
 
-    /// Adds one metadata entry.
+    /// Adds one checkout/session metadata entry.
+    ///
+    /// Metadata is sent to payment providers and may be visible in provider
+    /// dashboards and reports. Do not store secrets, credentials, card data,
+    /// bank data, or sensitive personal data in metadata.
     pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    /// Adds one underlying payment object metadata entry.
+    ///
+    /// For Stripe, this maps to `payment_intent_data[metadata]`. Metadata is
+    /// sent to payment providers and may be visible in provider dashboards and
+    /// reports. Do not store secrets, credentials, card data, bank data, or
+    /// sensitive personal data in metadata.
+    pub fn payment_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.payment_metadata.insert(key.into(), value.into());
         self
     }
 
@@ -245,6 +269,7 @@ impl CreatePaymentRequestBuilder {
             checkout_ui_mode: self.checkout_ui_mode,
             idempotency_key: self.idempotency_key,
             metadata: self.metadata,
+            payment_metadata: self.payment_metadata,
         })
     }
 }
@@ -401,6 +426,7 @@ mod tests {
             .idempotency_key("ORDER-1:create")
             .expect("key should be valid")
             .metadata("cart", "primary")
+            .payment_metadata("tenant_id", "tenant_123")
             .build()
             .expect("request should be valid");
 
@@ -431,6 +457,13 @@ mod tests {
                 .expect("metadata should exist"),
             "primary"
         );
+        assert_eq!(
+            request
+                .payment_metadata()
+                .get("tenant_id")
+                .expect("payment metadata should exist"),
+            "tenant_123"
+        );
     }
 
     #[test]
@@ -444,6 +477,21 @@ mod tests {
             .expect("request should be valid");
 
         assert_eq!(request.checkout_ui_mode(), CheckoutUiMode::Hosted);
+        assert!(request.payment_metadata().is_empty());
+    }
+
+    #[test]
+    fn builder_retains_custom_checkout_mode() {
+        let request = CreatePaymentRequest::builder()
+            .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
+            .reference("ORDER-1")
+            .expect("reference should be valid")
+            .payment_method(PaymentMethod::card())
+            .checkout_ui_mode(CheckoutUiMode::Custom)
+            .build()
+            .expect("request should be valid");
+
+        assert_eq!(request.checkout_ui_mode(), CheckoutUiMode::Custom);
     }
 
     #[test]

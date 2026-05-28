@@ -37,7 +37,7 @@ The default TLS backend is Rustls. Do not enable all providers unless the applic
 
 Common feature flags:
 
-- `stripe`: Stripe hosted and embedded Checkout, status, refunds, and webhooks.
+- `stripe`: Stripe hosted and custom Checkout, status, refunds, and webhooks.
 - `paypal`: PayPal Orders, OAuth, capture, and webhooks.
 - `lipila`: Lipila Zambia Mobile Money. This also enables `mobile-money`.
 - `mobile-money`: shared Mobile Money types and helpers.
@@ -79,20 +79,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Stripe Embedded Checkout
 
 Hosted Checkout remains the default. For an on-site Stripe Payment Element flow, request
-`CheckoutUiMode::Elements` and pass the returned client secret to Stripe.js.
+`CheckoutUiMode::Custom` and pass the returned client secret to Stripe.js.
+Metadata is sent to Stripe and may be visible in the Stripe Dashboard and
+reports, so do not put secrets, credentials, card data, bank data, or sensitive
+personal data in metadata. PayRail mirrors request metadata to Stripe
+PaymentIntent metadata by default for webhook reconciliation; use
+`.payment_metadata(...)` when the payment object needs different metadata.
 
 ```rust
 use payrail::{
-    CheckoutUiMode, CreatePaymentRequest, Money, NextAction, PaymentMethod,
+    CheckoutUiMode, CreatePaymentRequest, Customer, Money, NextAction, PaymentMethod,
 };
 
 let request = CreatePaymentRequest::builder()
     .amount(Money::new_minor(2_500, "USD")?)
     .reference("ORDER-1003")?
+    .customer(Customer::new().with_email("buyer@example.com"))
     .payment_method(PaymentMethod::card())
-    .checkout_ui_mode(CheckoutUiMode::Elements)
+    .checkout_ui_mode(CheckoutUiMode::Custom)
     .return_url("https://example.com/stripe/return?session_id={CHECKOUT_SESSION_ID}")?
     .idempotency_key("ORDER-1003:create")?
+    .metadata("tenant_id", "tenant_123")
+    .metadata("package_id", "package_456")
     .build()?;
 
 let session = client.create_payment(request).await?;
@@ -211,8 +219,8 @@ The workspace release gate is 90% line coverage. Core and security-sensitive mod
 ## Provider Limitations
 
 - Stripe stablecoin support is delegated to Stripe-supported Checkout flows.
-- Stripe card payments support hosted Checkout by default and embedded Checkout Sessions with
-  `CheckoutUiMode::Elements`.
+- Stripe card payments support hosted Checkout by default and custom Checkout Sessions with
+  `CheckoutUiMode::Custom`. `CheckoutUiMode::Elements` remains as a source-compatible alias.
 - General crypto payments use provider-neutral `PaymentMethod::crypto` and explicit route
   registration for modeled providers such as Circle, Coinbase, Bridge, or Binance once their
   first-party connectors exist.

@@ -5,7 +5,12 @@ pub enum CheckoutUiMode {
     /// Redirect the payer to a provider-hosted checkout page.
     #[default]
     Hosted,
+    /// Keep the payer on-site with a custom provider checkout component.
+    Custom,
     /// Keep the payer on-site with provider-hosted payment elements.
+    ///
+    /// This variant is retained for source compatibility. New code should use
+    /// [`CheckoutUiMode::Custom`].
     Elements,
 }
 

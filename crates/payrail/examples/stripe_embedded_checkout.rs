@@ -1,5 +1,6 @@
 use payrail::{
-    CheckoutUiMode, CreatePaymentRequest, Money, NextAction, PayRail, PaymentMethod, StripeConfig,
+    CheckoutUiMode, CreatePaymentRequest, Customer, Money, NextAction, PayRail, PaymentMethod,
+    StripeConfig,
 };
 use secrecy::SecretString;
 
@@ -14,10 +15,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let request = CreatePaymentRequest::builder()
         .amount(Money::new_minor(2_500, "USD")?)
         .reference("ORDER-1003")?
+        .customer(Customer::new().with_email("buyer@example.com"))
         .payment_method(PaymentMethod::card())
-        .checkout_ui_mode(CheckoutUiMode::Elements)
+        .checkout_ui_mode(CheckoutUiMode::Custom)
         .return_url("https://example.com/stripe/return?session_id={CHECKOUT_SESSION_ID}")?
         .idempotency_key("ORDER-1003:create")?
+        .metadata("tenant_id", "tenant_123")
+        .metadata("package_id", "package_456")
         .build()?;
 
     let session = client.create_payment(request).await?;

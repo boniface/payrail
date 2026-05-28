@@ -2,6 +2,19 @@
 
 All notable changes to PayRail are documented here.
 
+## 0.1.6 - Released
+
+### Added
+
+- Added `CheckoutUiMode::Custom` for Stripe custom Checkout Sessions.
+- Added provider-neutral payment object metadata through `payment_metadata`.
+- Forward Stripe Checkout Session metadata, PaymentIntent metadata, and customer email when
+  creating Checkout Sessions.
+
+### Changed
+
+- `CheckoutUiMode::Elements` remains source-compatible and now maps to Stripe `ui_mode=custom`.
+
 ## 0.1.5 - Released
 
 ### Added

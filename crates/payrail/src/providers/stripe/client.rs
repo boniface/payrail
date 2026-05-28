@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::{
-    CheckoutUiMode, CreatePaymentRequest, MerchantReference, NextAction, PaymentError,
+    CheckoutUiMode, CreatePaymentRequest, MerchantReference, Metadata, NextAction, PaymentError,
     PaymentEvent, PaymentMethod, PaymentProvider, PaymentSession, PaymentStatusResponse,
     ProviderErrorDetails, ProviderReference, RefundRequest, RefundResponse, StablecoinAsset,
     StablecoinPaymentMethod, WebhookEventId, WebhookRequest,
@@ -15,6 +15,9 @@ use super::{
     models::{StripeCheckoutSession, StripeEvent, StripeRefund},
     webhook::verify_signature,
 };
+
+type StripeFormPair<'a> = (Cow<'a, str>, Cow<'a, str>);
+type StripeForm<'a> = Vec<StripeFormPair<'a>>;
 
 /// Stripe `PayRail` connector.
 #[derive(Debug, Clone)]
@@ -313,50 +316,87 @@ impl StripeConnector {
 fn checkout_session_form<'a>(
     request: &'a CreatePaymentRequest,
     payment_method_type: &'static str,
-) -> Result<Vec<(&'static str, Cow<'a, str>)>, PaymentError> {
+) -> Result<StripeForm<'a>, PaymentError> {
     let return_url = request
         .return_url()
         .ok_or(PaymentError::MissingRequiredField("return_url"))?;
     let description = request.description().unwrap_or("PayRail payment");
-    let mut form = Vec::with_capacity(9);
-    form.push(("mode", Cow::Borrowed("payment")));
+    let payment_metadata = payment_metadata_for_request(request);
+    let customer_email = request.customer().and_then(|customer| customer.email());
+    let mut form = Vec::with_capacity(
+        9 + request.metadata().len()
+            + payment_metadata.len()
+            + usize::from(customer_email.is_some()),
+    );
+    form.push((Cow::Borrowed("mode"), Cow::Borrowed("payment")));
     match request.checkout_ui_mode() {
         CheckoutUiMode::Hosted => {
             let cancel_url = request
                 .cancel_url()
                 .ok_or(PaymentError::MissingRequiredField("cancel_url"))?;
-            form.push(("success_url", Cow::Borrowed(return_url.as_str())));
-            form.push(("cancel_url", Cow::Borrowed(cancel_url.as_str())));
+            form.push((
+                Cow::Borrowed("success_url"),
+                Cow::Borrowed(return_url.as_str()),
+            ));
+            form.push((
+                Cow::Borrowed("cancel_url"),
+                Cow::Borrowed(cancel_url.as_str()),
+            ));
         }
-        CheckoutUiMode::Elements => {
-            form.push(("ui_mode", Cow::Borrowed("elements")));
-            form.push(("return_url", Cow::Borrowed(return_url.as_str())));
+        CheckoutUiMode::Custom | CheckoutUiMode::Elements => {
+            form.push((Cow::Borrowed("ui_mode"), Cow::Borrowed("custom")));
+            form.push((
+                Cow::Borrowed("return_url"),
+                Cow::Borrowed(return_url.as_str()),
+            ));
         }
     }
     form.extend([
         (
-            "client_reference_id",
+            Cow::Borrowed("client_reference_id"),
             Cow::Borrowed(request.reference().as_str()),
         ),
         (
-            "payment_method_types[0]",
+            Cow::Borrowed("payment_method_types[0]"),
             Cow::Borrowed(payment_method_type),
         ),
-        ("line_items[0][quantity]", Cow::Borrowed("1")),
+        (Cow::Borrowed("line_items[0][quantity]"), Cow::Borrowed("1")),
         (
-            "line_items[0][price_data][currency]",
+            Cow::Borrowed("line_items[0][price_data][currency]"),
             Cow::Owned(request.amount().currency().as_str().to_ascii_lowercase()),
         ),
         (
-            "line_items[0][price_data][unit_amount]",
+            Cow::Borrowed("line_items[0][price_data][unit_amount]"),
             Cow::Owned(request.amount().amount().value().to_string()),
         ),
         (
-            "line_items[0][price_data][product_data][name]",
+            Cow::Borrowed("line_items[0][price_data][product_data][name]"),
             Cow::Borrowed(description),
         ),
     ]);
+    push_metadata(&mut form, "metadata", request.metadata());
+    push_metadata(&mut form, "payment_intent_data[metadata]", payment_metadata);
+    if let Some(email) = customer_email {
+        form.push((Cow::Borrowed("customer_email"), Cow::Borrowed(email)));
+    }
     Ok(form)
+}
+
+fn payment_metadata_for_request(request: &CreatePaymentRequest) -> &Metadata {
+    if request.payment_metadata().is_empty() {
+        request.metadata()
+    } else {
+        request.payment_metadata()
+    }
+}
+
+fn push_metadata<'a>(form: &mut StripeForm<'a>, prefix: &str, metadata: &'a Metadata) {
+    form.extend(metadata.iter().map(|(key, value)| {
+        (
+            Cow::Owned(format!("{prefix}[{key}]")),
+            Cow::Borrowed(value.as_str()),
+        )
+    }));
 }
 
 fn checkout_next_action(
@@ -370,10 +410,10 @@ fn checkout_next_action(
             .transpose()
             .map(|url| url.map(|url| NextAction::RedirectToUrl { url }))
             .map_err(|error| PaymentError::InvalidUrl(error.to_string())),
-        CheckoutUiMode::Elements => {
+        CheckoutUiMode::Custom | CheckoutUiMode::Elements => {
             let client_secret = client_secret.ok_or_else(|| {
                 PaymentError::InvalidConfiguration(
-                    "stripe embedded checkout session has no client_secret".to_owned(),
+                    "stripe custom checkout session has no client_secret".to_owned(),
                 )
             })?;
             Ok(Some(NextAction::EmbeddedCheckout { client_secret }))
@@ -385,7 +425,7 @@ fn checkout_next_action(
 mod tests {
     use std::fmt::Write;
 
-    use crate::{CheckoutUiMode, Money, PaymentMethod};
+    use crate::{CheckoutUiMode, Customer, Money, PaymentMethod};
     use hmac::{Hmac, KeyInit, Mac};
     use secrecy::SecretString;
     use serde_json::json;
@@ -444,14 +484,71 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_embedded_checkout_session_sends_elements_request() {
+    async fn create_custom_checkout_session_sends_custom_request() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/v1/checkout/sessions"))
             .and(header("authorization", "Bearer sk_test_payrail"))
-            .and(body_string_contains("ui_mode=elements"))
+            .and(body_string_contains("ui_mode=custom"))
             .and(body_string_contains("return_url="))
             .and(body_string_contains("payment_method_types%5B0%5D=card"))
+            .and(body_string_contains("metadata%5Btenant_id%5D=tenant_123"))
+            .and(body_string_contains(
+                "payment_intent_data%5Bmetadata%5D%5Btenant_id%5D=tenant_123",
+            ))
+            .and(body_string_contains("customer_email=buyer%40example.com"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "cs_test_custom_123",
+                "client_secret": "cs_test_custom_123_secret_payrail",
+                "payment_status": "unpaid",
+                "status": "open"
+            })))
+            .mount(&server)
+            .await;
+        let config = StripeConfig::new(SecretString::from("sk_test_payrail".to_owned()))
+            .expect("config should be valid")
+            .api_base(Url::parse(&server.uri()).expect("mock url should parse"));
+        let connector = StripeConnector::new(config).expect("connector should build");
+        let request = CreatePaymentRequest::builder()
+            .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
+            .reference("ORDER-1")
+            .expect("reference should be valid")
+            .customer(Customer::new().with_email("buyer@example.com"))
+            .payment_method(PaymentMethod::card())
+            .checkout_ui_mode(CheckoutUiMode::Custom)
+            .return_url("https://example.com/stripe/return?session_id={CHECKOUT_SESSION_ID}")
+            .expect("return url should be valid")
+            .metadata("tenant_id", "tenant_123")
+            .build()
+            .expect("request should be valid");
+
+        let session = connector
+            .create_payment(request)
+            .await
+            .expect("session should be created");
+
+        assert_eq!(session.provider_reference.as_str(), "cs_test_custom_123");
+        assert_eq!(
+            session.next_action,
+            Some(NextAction::EmbeddedCheckout {
+                client_secret: "cs_test_custom_123_secret_payrail".to_owned()
+            })
+        );
+        let requests = server
+            .received_requests()
+            .await
+            .expect("request recording should be enabled");
+        let body = String::from_utf8_lossy(&requests[0].body);
+        assert!(!body.contains("cancel_url="));
+        assert!(!body.contains("success_url="));
+    }
+
+    #[tokio::test]
+    async fn legacy_elements_mode_sends_custom_ui_mode() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/checkout/sessions"))
+            .and(body_string_contains("ui_mode=custom"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "id": "cs_test_elements_123",
                 "client_secret": "cs_test_elements_123_secret_payrail",
@@ -481,19 +578,51 @@ mod tests {
             .expect("session should be created");
 
         assert_eq!(session.provider_reference.as_str(), "cs_test_elements_123");
-        assert_eq!(
-            session.next_action,
-            Some(NextAction::EmbeddedCheckout {
-                client_secret: "cs_test_elements_123_secret_payrail".to_owned()
-            })
-        );
+    }
+
+    #[tokio::test]
+    async fn custom_checkout_uses_explicit_payment_metadata_when_present() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/checkout/sessions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "cs_test_custom_123",
+                "client_secret": "cs_test_custom_123_secret_payrail",
+                "payment_status": "unpaid",
+                "status": "open"
+            })))
+            .mount(&server)
+            .await;
+        let config = StripeConfig::new(SecretString::from("sk_test_payrail".to_owned()))
+            .expect("config should be valid")
+            .api_base(Url::parse(&server.uri()).expect("mock url should parse"));
+        let connector = StripeConnector::new(config).expect("connector should build");
+        let request = CreatePaymentRequest::builder()
+            .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
+            .reference("ORDER-1")
+            .expect("reference should be valid")
+            .payment_method(PaymentMethod::card())
+            .checkout_ui_mode(CheckoutUiMode::Custom)
+            .return_url("https://example.com/stripe/return?session_id={CHECKOUT_SESSION_ID}")
+            .expect("return url should be valid")
+            .metadata("tenant_id", "tenant_session")
+            .payment_metadata("tenant_id", "tenant_payment")
+            .build()
+            .expect("request should be valid");
+
+        let _session = connector
+            .create_payment(request)
+            .await
+            .expect("session should be created");
         let requests = server
             .received_requests()
             .await
             .expect("request recording should be enabled");
         let body = String::from_utf8_lossy(&requests[0].body);
-        assert!(!body.contains("cancel_url="));
-        assert!(!body.contains("success_url="));
+
+        assert!(body.contains("metadata%5Btenant_id%5D=tenant_session"));
+        assert!(body.contains("payment_intent_data%5Bmetadata%5D%5Btenant_id%5D=tenant_payment"));
+        assert!(!body.contains("payment_intent_data%5Bmetadata%5D%5Btenant_id%5D=tenant_session"));
     }
 
     #[tokio::test]
@@ -508,7 +637,7 @@ mod tests {
             .reference("ORDER-1")
             .expect("reference should be valid")
             .payment_method(PaymentMethod::card())
-            .checkout_ui_mode(CheckoutUiMode::Elements)
+            .checkout_ui_mode(CheckoutUiMode::Custom)
             .build()
             .expect("request should be valid");
 
@@ -556,9 +685,9 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/v1/checkout/sessions"))
-            .and(body_string_contains("ui_mode=elements"))
+            .and(body_string_contains("ui_mode=custom"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "id": "cs_test_elements_123",
+                "id": "cs_test_custom_123",
                 "payment_status": "unpaid",
                 "status": "open"
             })))
@@ -573,7 +702,7 @@ mod tests {
             .reference("ORDER-1")
             .expect("reference should be valid")
             .payment_method(PaymentMethod::card())
-            .checkout_ui_mode(CheckoutUiMode::Elements)
+            .checkout_ui_mode(CheckoutUiMode::Custom)
             .return_url("https://example.com/stripe/return")
             .expect("return url should be valid")
             .build()
