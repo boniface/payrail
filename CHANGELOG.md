@@ -2,7 +2,7 @@
 
 All notable changes to PayRail are documented here.
 
-## 0.1.6 - Unreleased
+## 0.1.6 - Released
 
 ### Added
 
