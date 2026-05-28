@@ -2,7 +2,7 @@
 
 use hmac::{Hmac, KeyInit, Mac};
 use payrail::{
-    CheckoutUiMode, IdempotencyKey, Money, NextAction, PaymentError, PaymentMethod,
+    CheckoutUiMode, Customer, IdempotencyKey, Money, NextAction, PaymentError, PaymentMethod,
     PaymentProvider, RefundRequest, WebhookRequest,
 };
 use payrail::{StripeConfig, StripeConnector};
@@ -103,17 +103,22 @@ async fn stripe_mock_backend_covers_payment_status_refund_and_webhook() {
 }
 
 #[tokio::test]
-async fn stripe_mock_backend_covers_embedded_checkout_session() {
+async fn stripe_mock_backend_covers_custom_checkout_session() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/checkout/sessions"))
         .and(header("authorization", "Bearer sk_test_payrail"))
-        .and(body_string_contains("ui_mode=elements"))
+        .and(body_string_contains("ui_mode=custom"))
         .and(body_string_contains("return_url="))
         .and(body_string_contains("payment_method_types%5B0%5D=card"))
+        .and(body_string_contains("metadata%5Btenant_id%5D=tenant_123"))
+        .and(body_string_contains(
+            "payment_intent_data%5Bmetadata%5D%5Bpackage_id%5D=package_456",
+        ))
+        .and(body_string_contains("customer_email=buyer%40example.com"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "id": "cs_test_elements_123",
-            "client_secret": "cs_test_elements_123_secret_payrail",
+            "id": "cs_test_custom_123",
+            "client_secret": "cs_test_custom_123_secret_payrail",
             "payment_status": "unpaid",
             "status": "open"
         })))
@@ -124,10 +129,13 @@ async fn stripe_mock_backend_covers_embedded_checkout_session() {
         .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
         .reference("ORDER-EMBEDDED")
         .expect("reference should be valid")
+        .customer(Customer::new().with_email("buyer@example.com"))
         .payment_method(PaymentMethod::card())
-        .checkout_ui_mode(CheckoutUiMode::Elements)
+        .checkout_ui_mode(CheckoutUiMode::Custom)
         .return_url("https://example.com/stripe/return?session_id={CHECKOUT_SESSION_ID}")
         .expect("return url should be valid")
+        .metadata("tenant_id", "tenant_123")
+        .payment_metadata("package_id", "package_456")
         .build()
         .expect("request should be valid");
 
@@ -136,11 +144,11 @@ async fn stripe_mock_backend_covers_embedded_checkout_session() {
         .await
         .expect("session should be created");
 
-    assert_eq!(session.provider_reference.as_str(), "cs_test_elements_123");
+    assert_eq!(session.provider_reference.as_str(), "cs_test_custom_123");
     assert_eq!(
         session.next_action,
         Some(NextAction::EmbeddedCheckout {
-            client_secret: "cs_test_elements_123_secret_payrail".to_owned()
+            client_secret: "cs_test_custom_123_secret_payrail".to_owned()
         })
     );
 }
