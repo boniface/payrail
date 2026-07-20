@@ -2,6 +2,14 @@
 
 All notable changes to PayRail are documented here.
 
+## 0.1.7 - Released
+
+### Fixed
+
+- Updated vulnerable transitive dependencies so dependency audit and deny checks pass:
+  `crossbeam-epoch` to `0.9.20`, `quinn-proto` to `0.11.16`, and `anyhow` to `1.0.104`.
+- Removed stale `cargo-deny` duplicate skip entries that no longer matched the lockfile.
+
 ## 0.1.6 - Released
 
 ### Added
