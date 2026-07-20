@@ -19,8 +19,6 @@ multiple-versions = "warn"
 wildcards = "deny"
 highlight = "all"
 skip = [
-    { name = "getrandom", version = "=0.2.17" },
-    { name = "windows-sys", version = "=0.52.0" },
     { name = "wit-bindgen", version = "=0.51.0" },
 ]
 
