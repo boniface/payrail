@@ -6,6 +6,8 @@ mod currency;
 mod customer;
 mod error;
 mod events;
+#[cfg(feature = "fraud")]
+mod fraud;
 mod idempotency;
 mod money;
 mod next_action;
@@ -26,6 +28,8 @@ pub use currency::CurrencyCode;
 pub use customer::Customer;
 pub use error::{PaymentError, ProviderErrorDetails};
 pub use events::{PaymentEvent, PaymentEventType};
+#[cfg(feature = "fraud")]
+pub use fraud::*;
 pub use idempotency::IdempotencyKey;
 pub use money::Money;
 pub use next_action::NextAction;

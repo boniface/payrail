@@ -35,6 +35,16 @@ pub enum PaymentError {
     #[error("invalid reference: {0}")]
     InvalidReference(String),
 
+    /// Invalid fraud risk score.
+    #[cfg(feature = "fraud")]
+    #[error("invalid risk score: {0}")]
+    InvalidRiskScore(u16),
+
+    /// Invalid fraud risk context.
+    #[cfg(feature = "fraud")]
+    #[error("invalid risk context: {0}")]
+    InvalidRiskContext(String),
+
     /// Invalid idempotency key.
     #[error("invalid idempotency key: {0}")]
     InvalidIdempotencyKey(String),

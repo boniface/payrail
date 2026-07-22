@@ -46,6 +46,7 @@ lipila = [
 ]
 mobile-money = []
 all-providers = ["stripe", "paypal", "lipila", "mobile-money"]
+fraud = []
 rustls = ["reqwest/rustls"]
 native-tls = ["reqwest/native-tls"]
 
