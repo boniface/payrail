@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+#[cfg(feature = "telemetry")]
+use crate::emit_provider_request_result;
 use crate::{
     CaptureRequest, CaptureResponse, CreatePaymentRequest, NextAction, PaymentError, PaymentEvent,
     PaymentMethod, PaymentProvider, PaymentSession, PaymentStatusResponse, ProviderErrorDetails,
@@ -65,9 +67,17 @@ impl PayPalConnector {
 
     async fn parse_response<T: serde::de::DeserializeOwned>(
         &self,
+        operation: &'static str,
         response: reqwest::Response,
     ) -> Result<T, PaymentError> {
         let status = response.status();
+        #[cfg(feature = "telemetry")]
+        emit_provider_request_result(
+            &PaymentProvider::PayPal,
+            operation,
+            status.as_u16(),
+            status.is_success(),
+        );
         if status.is_success() {
             return Ok(response.json::<T>().await?);
         }
@@ -102,6 +112,7 @@ impl PayPalConnector {
         let token = self.access_token().await?;
         let response: VerifyWebhookSignatureResponse = self
             .parse_response(
+                "verify_webhook_signature",
                 self.client
                     .post(self.endpoint("/v1/notifications/verify-webhook-signature")?)
                     .bearer_auth(token.as_ref())
@@ -158,12 +169,14 @@ impl PayPalConnector {
         }
 
         tracing::debug!(
-            provider = "paypal",
-            operation = "create_payment",
-            has_idempotency_key = request.idempotency_key().is_some(),
+            "payrail.provider" = "paypal",
+            "payrail.operation" = "create_payment",
+            "payrail.has_idempotency_key" = request.idempotency_key().is_some(),
             "sending provider request"
         );
-        let order: PayPalOrder = self.parse_response(builder.send().await?).await?;
+        let order: PayPalOrder = self
+            .parse_response("create_payment", builder.send().await?)
+            .await?;
         let url = approval_url(&order)?;
         let reference = request.into_reference();
 
@@ -188,12 +201,13 @@ impl PayPalConnector {
         let token = self.access_token().await?;
         let path = format!("/v2/checkout/orders/{}", provider_reference.as_str());
         tracing::debug!(
-            provider = "paypal",
-            operation = "get_payment_status",
+            "payrail.provider" = "paypal",
+            "payrail.operation" = "get_payment_status",
             "sending provider request"
         );
         let order: PayPalOrder = self
             .parse_response(
+                "get_payment_status",
                 self.client
                     .get(self.endpoint(&path)?)
                     .bearer_auth(token.as_ref())
@@ -233,9 +247,9 @@ impl PayPalConnector {
         request: WebhookRequest<'_>,
     ) -> Result<PaymentEvent, PaymentError> {
         tracing::debug!(
-            provider = "paypal",
-            operation = "parse_webhook",
-            payload_len = request.payload.len(),
+            "payrail.provider" = "paypal",
+            "payrail.operation" = "parse_webhook",
+            "payrail.payload_len" = request.payload.len(),
             "verifying webhook signature"
         );
         self.verify_webhook_signature(&request).await?;
@@ -259,12 +273,13 @@ impl PayPalConnector {
             request.provider_reference.as_str()
         );
         tracing::debug!(
-            provider = "paypal",
-            operation = "capture_payment",
+            "payrail.provider" = "paypal",
+            "payrail.operation" = "capture_payment",
             "sending provider request"
         );
         let order: PayPalOrder = self
             .parse_response(
+                "capture_payment",
                 self.client
                     .post(self.endpoint(&path)?)
                     .bearer_auth(token.as_ref())

@@ -1,3 +1,5 @@
+#[cfg(feature = "telemetry")]
+use crate::emit_provider_request_result;
 use crate::{
     CreatePaymentRequest, CurrencyCode, NextAction, PaymentError, PaymentEvent, PaymentMethod,
     PaymentProvider, PaymentSession, PaymentStatusResponse, ProviderErrorDetails,
@@ -45,9 +47,17 @@ impl LipilaConnector {
 
     async fn parse_response<T: serde::de::DeserializeOwned>(
         &self,
+        operation: &'static str,
         response: reqwest::Response,
     ) -> Result<T, PaymentError> {
         let status = response.status();
+        #[cfg(feature = "telemetry")]
+        emit_provider_request_result(
+            &PaymentProvider::Lipila,
+            operation,
+            status.as_u16(),
+            status.is_success(),
+        );
         if status.is_success() {
             return Ok(response.json::<T>().await?);
         }
@@ -95,12 +105,14 @@ impl LipilaConnector {
         }
 
         tracing::debug!(
-            provider = "lipila",
-            operation = "create_payment",
-            has_callback_url = request.callback_url().is_some(),
+            "payrail.provider" = "lipila",
+            "payrail.operation" = "create_payment",
+            "payrail.has_callback_url" = request.callback_url().is_some(),
             "sending provider request"
         );
-        let response: LipilaCollectionResponse = self.parse_response(builder.send().await?).await?;
+        let response: LipilaCollectionResponse = self
+            .parse_response("create_payment", builder.send().await?)
+            .await?;
         let reference = request.into_reference();
         let _normalized_amount = response.amount.as_i64().map(|amount| {
             CurrencyCode::new(&response.currency)
@@ -140,12 +152,13 @@ impl LipilaConnector {
         url.query_pairs_mut()
             .append_pair("referenceId", provider_reference.as_str());
         tracing::debug!(
-            provider = "lipila",
-            operation = "get_payment_status",
+            "payrail.provider" = "lipila",
+            "payrail.operation" = "get_payment_status",
             "sending provider request"
         );
         let response: LipilaCollectionResponse = self
             .parse_response(
+                "get_payment_status",
                 self.client
                     .get(url)
                     .header("x-api-key", self.config.api_key().expose_secret())
@@ -197,9 +210,9 @@ impl LipilaConnector {
         let timestamp = header(&request, "webhook-timestamp")?;
         let signature = header(&request, "webhook-signature")?;
         tracing::debug!(
-            provider = "lipila",
-            operation = "parse_webhook",
-            payload_len = request.payload.len(),
+            "payrail.provider" = "lipila",
+            "payrail.operation" = "parse_webhook",
+            "payrail.payload_len" = request.payload.len(),
             "verifying webhook signature"
         );
         verify_signature(webhook_id, timestamp, signature, request.payload, secret)?;
