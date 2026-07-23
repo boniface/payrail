@@ -7,6 +7,9 @@ use crate::{
     StablecoinAsset, WebhookRequest,
 };
 
+#[cfg(feature = "fraud")]
+use crate::{FraudPolicy, RiskAssessment, RiskAwarePaymentSession};
+
 /// Provider router used by the facade.
 #[derive(Clone)]
 pub struct PaymentRouter {
@@ -168,6 +171,37 @@ impl PaymentRouter {
     ) -> Result<PaymentSession, PaymentError> {
         let provider = self.resolve_provider(request.payment_method())?;
         self.create_payment_with_provider(provider, request).await
+    }
+
+    /// Assesses payment risk using the default local fraud policy.
+    #[cfg(feature = "fraud")]
+    #[inline]
+    #[must_use]
+    pub fn assess_payment_risk(&self, request: &CreatePaymentRequest) -> RiskAssessment {
+        FraudPolicy::default().assess_request(request)
+    }
+
+    /// Assesses risk and creates a payment only when the policy allows provider execution.
+    ///
+    /// Rejected payments return a successful risk-aware result with `payment() == None`, so
+    /// callers do not need provider-specific error details to handle fraud policy decisions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when policy allows execution but routing or provider execution fails.
+    #[cfg(feature = "fraud")]
+    pub async fn create_payment_with_risk(
+        &self,
+        request: CreatePaymentRequest,
+        policy: &FraudPolicy,
+    ) -> Result<RiskAwarePaymentSession, PaymentError> {
+        let assessment = policy.assess_request(&request);
+        if !policy.allows_payment_creation(assessment.decision()) {
+            return Ok(RiskAwarePaymentSession::new(None, assessment));
+        }
+
+        let payment = self.create_payment(request).await?;
+        Ok(RiskAwarePaymentSession::new(Some(payment), assessment))
     }
 
     /// Resolves the built-in provider that would handle a payment method.
@@ -441,6 +475,22 @@ mod tests {
 
     use super::*;
 
+    #[cfg(feature = "fraud")]
+    fn rejected_fraud_request() -> CreatePaymentRequest {
+        CreatePaymentRequest::builder()
+            .amount(Money::new_minor(100, "USD").expect("money should be valid"))
+            .reference("ORDER-FRAUD")
+            .expect("reference should be valid")
+            .payment_method(PaymentMethod::paypal())
+            .risk_context(
+                crate::RiskContext::new().with_velocity(
+                    crate::VelocityRiskContext::new().with_chargebacks_last_90_days(1),
+                ),
+            )
+            .build()
+            .expect("request should be valid")
+    }
+
     #[tokio::test]
     async fn routes_card_to_stripe() {
         let request = CreatePaymentRequest::builder()
@@ -455,6 +505,34 @@ mod tests {
             PaymentRouter::new().create_payment(request).await,
             Err(PaymentError::ConnectorNotConfigured {
                 provider: PaymentProvider::Stripe
+            })
+        ));
+    }
+
+    #[cfg(feature = "fraud")]
+    #[tokio::test]
+    async fn risk_aware_creation_returns_rejected_session_without_provider_io() {
+        let policy = FraudPolicy::new().enforce();
+        let session = PaymentRouter::new()
+            .create_payment_with_risk(rejected_fraud_request(), &policy)
+            .await
+            .expect("rejected risk-aware payment should not call provider");
+
+        assert!(session.payment().is_none());
+        assert_eq!(session.assessment().decision(), crate::RiskDecision::Reject);
+    }
+
+    #[cfg(feature = "fraud")]
+    #[tokio::test]
+    async fn observe_only_rejection_still_executes_provider_path() {
+        let policy = FraudPolicy::new().observe_only();
+
+        assert!(matches!(
+            PaymentRouter::new()
+                .create_payment_with_risk(rejected_fraud_request(), &policy)
+                .await,
+            Err(PaymentError::ConnectorNotConfigured {
+                provider: PaymentProvider::PayPal
             })
         ));
     }
