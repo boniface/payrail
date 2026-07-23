@@ -74,8 +74,12 @@ uuid.workspace = true
 [dev-dependencies]
 axum.workspace = true
 criterion.workspace = true
+opentelemetry-otlp = "0.32"
+opentelemetry_sdk = "0.32"
 secrecy.workspace = true
 tokio.workspace = true
+tracing-opentelemetry = "0.33"
+tracing-subscriber = "0.3"
 wiremock.workspace = true
 
 [[bench]]
@@ -109,3 +113,7 @@ required-features = ["lipila"]
 [[example]]
 name = "fraud_mock_provider"
 required-features = ["fraud"]
+
+[[example]]
+name = "opentelemetry_metrics"
+required-features = ["otel-examples"]
