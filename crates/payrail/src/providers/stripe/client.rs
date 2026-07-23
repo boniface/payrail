@@ -6,6 +6,11 @@ use crate::{
     ProviderErrorDetails, ProviderReference, RefundRequest, RefundResponse, StablecoinAsset,
     StablecoinPaymentMethod, WebhookEventId, WebhookRequest,
 };
+#[cfg(feature = "fraud")]
+use crate::{
+    FraudEvent, FraudEventType, FraudProvider, FraudProviderReference, RiskAssessment,
+    RiskDecision, RiskLevel, RiskReason, RiskReasonCode, RiskScore,
+};
 use secrecy::ExposeSecret;
 use url::Url;
 
@@ -109,6 +114,28 @@ impl StripeConnector {
             method.preferred_asset.as_ref(),
             None | Some(StablecoinAsset::Usdc)
         )
+    }
+
+    fn verified_stripe_event(
+        &self,
+        request: WebhookRequest<'_>,
+    ) -> Result<StripeEvent, PaymentError> {
+        let secret = self.config.webhook_secret_value().ok_or_else(|| {
+            PaymentError::InvalidConfiguration("missing stripe webhook secret".to_owned())
+        })?;
+        let signature = request
+            .headers
+            .get("stripe-signature")
+            .and_then(|value| value.to_str().ok())
+            .ok_or(PaymentError::WebhookVerificationFailed)?;
+        tracing::debug!(
+            provider = "stripe",
+            operation = "parse_webhook",
+            payload_len = request.payload.len(),
+            "verifying webhook signature"
+        );
+        verify_signature(request.payload, signature, secret)?;
+        Ok(serde_json::from_slice(request.payload)?)
     }
 }
 
@@ -266,23 +293,9 @@ impl StripeConnector {
         &self,
         request: WebhookRequest<'_>,
     ) -> Result<PaymentEvent, PaymentError> {
-        let secret = self.config.webhook_secret_value().ok_or_else(|| {
-            PaymentError::InvalidConfiguration("missing stripe webhook secret".to_owned())
-        })?;
-        let signature = request
-            .headers
-            .get("stripe-signature")
-            .and_then(|value| value.to_str().ok())
-            .ok_or(PaymentError::WebhookVerificationFailed)?;
-        tracing::debug!(
-            provider = "stripe",
-            operation = "parse_webhook",
-            payload_len = request.payload.len(),
-            "verifying webhook signature"
-        );
-        verify_signature(request.payload, signature, secret)?;
-        let event: StripeEvent = serde_json::from_slice(request.payload)?;
+        let event = self.verified_stripe_event(request)?;
         let (event_type, status) = map_event_type(&event.event_type);
+        let (event_type, status) = dispute_payment_event_type(&event, event_type, status);
         let provider_reference = event
             .data
             .object
@@ -311,6 +324,171 @@ impl StripeConnector {
             message: None,
         })
     }
+
+    /// Parses and verifies a Stripe fraud or dispute webhook.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when verification fails, the payload is invalid, or the event type is not
+    /// fraud/dispute related.
+    #[cfg(feature = "fraud")]
+    pub async fn parse_fraud_webhook(
+        &self,
+        request: WebhookRequest<'_>,
+    ) -> Result<FraudEvent, PaymentError> {
+        let event = self.verified_stripe_event(request)?;
+        stripe_fraud_event(event)
+    }
+}
+
+fn dispute_payment_event_type(
+    event: &StripeEvent,
+    event_type: crate::PaymentEventType,
+    status: crate::PaymentStatus,
+) -> (crate::PaymentEventType, crate::PaymentStatus) {
+    if event.event_type != "charge.dispute.closed" {
+        return (event_type, status);
+    }
+
+    match string_field(&event.data.object, "status") {
+        Some("won") => (
+            crate::PaymentEventType::DisputeWon,
+            crate::PaymentStatus::Succeeded,
+        ),
+        Some("lost") => (
+            crate::PaymentEventType::DisputeLost,
+            crate::PaymentStatus::Failed,
+        ),
+        Some(_) | None => (
+            crate::PaymentEventType::DisputeUpdated,
+            crate::PaymentStatus::Processing,
+        ),
+    }
+}
+
+#[cfg(feature = "fraud")]
+fn stripe_fraud_event(event: StripeEvent) -> Result<FraudEvent, PaymentError> {
+    let (event_type, decision, score, level) =
+        stripe_fraud_event_type(&event.event_type, &event.data.object)?;
+    let provider_reference = string_field(&event.data.object, "id")
+        .map(FraudProviderReference::new)
+        .transpose()?;
+    let payment_reference = string_field(&event.data.object, "payment_intent")
+        .or_else(|| string_field(&event.data.object, "charge"))
+        .map(ProviderReference::new)
+        .transpose()?;
+    let merchant_reference = string_field(&event.data.object, "client_reference_id")
+        .or_else(|| metadata_string_field(&event.data.object, "client_reference_id"))
+        .or_else(|| metadata_string_field(&event.data.object, "merchant_reference"))
+        .map(MerchantReference::new)
+        .transpose()?;
+    let assessment = RiskAssessment::new(decision)
+        .with_provider(FraudProvider::StripeRadar)
+        .with_score(RiskScore::new(score).expect("stripe fraud score should be valid"))
+        .with_level(level)
+        .with_reason(RiskReason::new(RiskReasonCode::ProviderRule));
+    let mut fraud_event = FraudEvent::new(FraudProvider::StripeRadar, event_type)
+        .with_id(WebhookEventId::new(event.id)?)
+        .with_assessment(assessment);
+
+    if let Some(reference) = provider_reference {
+        fraud_event = fraud_event.with_provider_reference(reference);
+    }
+    if let Some(reference) = payment_reference {
+        fraud_event = fraud_event.with_payment_reference(PaymentProvider::Stripe, reference);
+    }
+    if let Some(reference) = merchant_reference {
+        fraud_event = fraud_event.with_merchant_reference(reference);
+    }
+
+    Ok(fraud_event)
+}
+
+#[cfg(feature = "fraud")]
+fn stripe_fraud_event_type(
+    event_type: &str,
+    object: &serde_json::Value,
+) -> Result<(FraudEventType, RiskDecision, u16, RiskLevel), PaymentError> {
+    match event_type {
+        "radar.early_fraud_warning.created" => Ok((
+            FraudEventType::EarlyFraudWarningCreated,
+            RiskDecision::Review,
+            700,
+            RiskLevel::High,
+        )),
+        "review.opened" => Ok((
+            FraudEventType::ReviewOpened,
+            RiskDecision::Review,
+            650,
+            RiskLevel::High,
+        )),
+        "review.closed" => Ok(match string_field(object, "reason") {
+            Some("approved") => (
+                FraudEventType::ReviewApproved,
+                RiskDecision::Allow,
+                250,
+                RiskLevel::Medium,
+            ),
+            Some("refunded_as_fraud") | Some("refunded") | Some("disputed") => (
+                FraudEventType::ReviewRejected,
+                RiskDecision::Reject,
+                850,
+                RiskLevel::Critical,
+            ),
+            Some(_) | None => (
+                FraudEventType::ReviewRejected,
+                RiskDecision::Review,
+                650,
+                RiskLevel::High,
+            ),
+        }),
+        "charge.dispute.created" => Ok((
+            FraudEventType::DisputeOpened,
+            RiskDecision::Review,
+            850,
+            RiskLevel::Critical,
+        )),
+        "charge.dispute.updated" => Ok((
+            FraudEventType::DisputeUpdated,
+            RiskDecision::Review,
+            750,
+            RiskLevel::Critical,
+        )),
+        "charge.dispute.closed" => Ok(match string_field(object, "status") {
+            Some("won") => (
+                FraudEventType::DisputeWon,
+                RiskDecision::Allow,
+                250,
+                RiskLevel::Medium,
+            ),
+            Some("lost") => (
+                FraudEventType::DisputeLost,
+                RiskDecision::Reject,
+                900,
+                RiskLevel::Critical,
+            ),
+            Some(_) | None => (
+                FraudEventType::DisputeUpdated,
+                RiskDecision::Review,
+                750,
+                RiskLevel::Critical,
+            ),
+        }),
+        _ => Err(PaymentError::InvalidWebhookPayload(format!(
+            "unsupported stripe fraud event type: {event_type}"
+        ))),
+    }
+}
+
+fn string_field<'a>(object: &'a serde_json::Value, key: &str) -> Option<&'a str> {
+    object.get(key).and_then(serde_json::Value::as_str)
+}
+
+fn metadata_string_field<'a>(object: &'a serde_json::Value, key: &str) -> Option<&'a str> {
+    object
+        .get("metadata")
+        .and_then(|metadata| metadata.get(key))
+        .and_then(serde_json::Value::as_str)
 }
 
 fn checkout_session_form<'a>(
@@ -768,8 +946,111 @@ mod tests {
             "type":"payment_intent.succeeded",
             "data":{"object":{"id":"pi_123","client_reference_id":"ORDER-1"}}
         }"#;
+        let event = connector
+            .parse_webhook(WebhookRequest::new(payload, signed_headers(payload)))
+            .await
+            .expect("webhook should parse");
+
+        assert_eq!(status.status, crate::PaymentStatus::Succeeded);
+        assert_eq!(refund.status, crate::PaymentStatus::Refunded);
+        assert_eq!(event.provider_reference.as_str(), "pi_123");
+    }
+
+    #[tokio::test]
+    async fn dispute_webhook_is_visible_as_payment_event() {
+        let config = StripeConfig::new(SecretString::from("sk_test_payrail".to_owned()))
+            .expect("config should be valid")
+            .webhook_secret(Some(SecretString::from("whsec_test".to_owned())));
+        let connector = StripeConnector::new(config).expect("connector should build");
+        let payload = br#"{
+            "id":"evt_dispute_123",
+            "type":"charge.dispute.closed",
+            "data":{"object":{"id":"du_123","payment_intent":"pi_123","status":"lost","metadata":{"merchant_reference":"ORDER-1"}}}
+        }"#;
+
+        let event = connector
+            .parse_webhook(WebhookRequest::new(payload, signed_headers(payload)))
+            .await
+            .expect("dispute webhook should parse");
+
+        assert_eq!(event.provider_reference.as_str(), "pi_123");
+        assert_eq!(event.event_type(), crate::PaymentEventType::DisputeLost);
+        assert_eq!(event.status(), crate::PaymentStatus::Failed);
+    }
+
+    #[cfg(feature = "fraud")]
+    #[tokio::test]
+    async fn fraud_webhook_normalizes_stripe_dispute() {
+        let config = StripeConfig::new(SecretString::from("sk_test_payrail".to_owned()))
+            .expect("config should be valid")
+            .webhook_secret(Some(SecretString::from("whsec_test".to_owned())));
+        let connector = StripeConnector::new(config).expect("connector should build");
+        let payload = br#"{
+            "id":"evt_fraud_123",
+            "type":"charge.dispute.created",
+            "data":{"object":{"id":"du_123","payment_intent":"pi_123","metadata":{"merchant_reference":"ORDER-1"}}}
+        }"#;
+
+        let event = connector
+            .parse_fraud_webhook(WebhookRequest::new(payload, signed_headers(payload)))
+            .await
+            .expect("fraud webhook should parse");
+
+        assert_eq!(event.event_type(), crate::FraudEventType::DisputeOpened);
+        assert_eq!(
+            event
+                .provider_reference()
+                .expect("provider reference should exist")
+                .as_str(),
+            "du_123"
+        );
+        assert_eq!(
+            event
+                .payment_provider_reference()
+                .expect("payment reference should exist")
+                .as_str(),
+            "pi_123"
+        );
+        assert_eq!(
+            event
+                .merchant_reference()
+                .expect("merchant reference should exist")
+                .as_str(),
+            "ORDER-1"
+        );
+        assert_eq!(
+            event
+                .assessment()
+                .expect("assessment should exist")
+                .decision(),
+            crate::RiskDecision::Review
+        );
+    }
+
+    #[cfg(feature = "fraud")]
+    #[tokio::test]
+    async fn fraud_webhook_rejects_non_fraud_event_type() {
+        let config = StripeConfig::new(SecretString::from("sk_test_payrail".to_owned()))
+            .expect("config should be valid")
+            .webhook_secret(Some(SecretString::from("whsec_test".to_owned())));
+        let connector = StripeConnector::new(config).expect("connector should build");
+        let payload = br#"{
+            "id":"evt_payment_123",
+            "type":"payment_intent.succeeded",
+            "data":{"object":{"id":"pi_123"}}
+        }"#;
+
+        let error = connector
+            .parse_fraud_webhook(WebhookRequest::new(payload, signed_headers(payload)))
+            .await
+            .expect_err("payment event should not parse as fraud");
+
+        assert!(matches!(error, PaymentError::InvalidWebhookPayload(_)));
+    }
+
+    fn signed_headers(payload: &[u8]) -> http::HeaderMap {
         let timestamp = time::OffsetDateTime::now_utc().unix_timestamp().to_string();
-        let mut signed_payload = Vec::new();
+        let mut signed_payload = Vec::with_capacity(timestamp.len() + 1 + payload.len());
         signed_payload.extend_from_slice(timestamp.as_bytes());
         signed_payload.push(b'.');
         signed_payload.extend_from_slice(payload);
@@ -785,14 +1066,7 @@ mod tests {
             "stripe-signature",
             signature.parse().expect("signature header should parse"),
         );
-        let event = connector
-            .parse_webhook(WebhookRequest::new(payload, headers))
-            .await
-            .expect("webhook should parse");
-
-        assert_eq!(status.status, crate::PaymentStatus::Succeeded);
-        assert_eq!(refund.status, crate::PaymentStatus::Refunded);
-        assert_eq!(event.provider_reference.as_str(), "pi_123");
+        headers
     }
 
     fn hex_for_test(bytes: &[u8]) -> String {

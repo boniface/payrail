@@ -1,6 +1,7 @@
 mod assessment;
 mod context;
 mod decision;
+mod event;
 mod policy;
 mod provider;
 mod reason;
@@ -15,6 +16,7 @@ pub use context::{
     NetworkRiskContext, RiskContext, VelocityRiskContext,
 };
 pub use decision::{RiskDecision, RiskLevel};
+pub use event::{FraudEvent, FraudEventType};
 pub use policy::{FraudPolicy, FraudPolicyMode};
 pub use provider::{FraudProvider, FraudProviderReference};
 pub use reason::{RiskReason, RiskReasonCode};

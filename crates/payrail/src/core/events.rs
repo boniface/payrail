@@ -103,6 +103,14 @@ pub enum PaymentEventType {
     RefundCreated,
     /// Refund failed.
     RefundFailed,
+    /// A dispute was opened.
+    DisputeOpened,
+    /// A dispute changed state.
+    DisputeUpdated,
+    /// A dispute was won.
+    DisputeWon,
+    /// A dispute was lost.
+    DisputeLost,
 }
 
 #[cfg(test)]

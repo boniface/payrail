@@ -5,7 +5,7 @@ use crate::{
 };
 
 #[cfg(feature = "fraud")]
-use crate::{FraudPolicy, RiskAssessment, RiskAwarePaymentSession};
+use crate::{FraudEvent, FraudPolicy, RiskAssessment, RiskAwarePaymentSession};
 
 use crate::PaymentRouter;
 
@@ -107,6 +107,20 @@ impl PayRailClient {
         request: WebhookRequest<'_>,
     ) -> Result<PaymentEvent, PaymentError> {
         self.router.parse_webhook(provider, request).await
+    }
+
+    /// Parses a provider fraud or dispute webhook.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when routing, verification, or parsing fails.
+    #[cfg(feature = "fraud")]
+    pub async fn parse_fraud_webhook(
+        &self,
+        provider: PaymentProvider,
+        request: WebhookRequest<'_>,
+    ) -> Result<FraudEvent, PaymentError> {
+        self.router.parse_fraud_webhook(provider, request).await
     }
 }
 
