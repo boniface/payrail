@@ -8,6 +8,9 @@ use crate::{
     PaymentId, PaymentMethod, PaymentProvider, PaymentStatus, ProviderReference,
 };
 
+#[cfg(feature = "fraud")]
+use crate::RiskContext;
+
 /// Request metadata.
 pub type Metadata = BTreeMap<String, String>;
 
@@ -26,6 +29,8 @@ pub struct CreatePaymentRequest {
     idempotency_key: Option<IdempotencyKey>,
     metadata: Metadata,
     payment_metadata: Metadata,
+    #[cfg(feature = "fraud")]
+    risk_context: Option<RiskContext>,
 }
 
 impl CreatePaymentRequest {
@@ -119,6 +124,14 @@ impl CreatePaymentRequest {
         &self.payment_metadata
     }
 
+    /// Returns fraud risk context supplied by the application.
+    #[cfg(feature = "fraud")]
+    #[inline]
+    #[must_use]
+    pub const fn risk_context(&self) -> Option<&RiskContext> {
+        self.risk_context.as_ref()
+    }
+
     #[cfg(any(feature = "lipila", feature = "paypal", feature = "stripe"))]
     pub(crate) fn into_reference(self) -> MerchantReference {
         self.reference
@@ -141,6 +154,8 @@ pub struct CreatePaymentRequestBuilder {
     idempotency_key: Option<IdempotencyKey>,
     metadata: Metadata,
     payment_metadata: Metadata,
+    #[cfg(feature = "fraud")]
+    risk_context: Option<RiskContext>,
 }
 
 impl CreatePaymentRequestBuilder {
@@ -245,6 +260,13 @@ impl CreatePaymentRequestBuilder {
         self
     }
 
+    /// Sets fraud risk context used by risk-aware payment APIs.
+    #[cfg(feature = "fraud")]
+    pub fn risk_context(mut self, context: RiskContext) -> Self {
+        self.risk_context = Some(context);
+        self
+    }
+
     /// Builds the request.
     ///
     /// # Errors
@@ -270,6 +292,8 @@ impl CreatePaymentRequestBuilder {
             idempotency_key: self.idempotency_key,
             metadata: self.metadata,
             payment_metadata: self.payment_metadata,
+            #[cfg(feature = "fraud")]
+            risk_context: self.risk_context,
         })
     }
 }
@@ -478,6 +502,27 @@ mod tests {
 
         assert_eq!(request.checkout_ui_mode(), CheckoutUiMode::Hosted);
         assert!(request.payment_metadata().is_empty());
+    }
+
+    #[cfg(feature = "fraud")]
+    #[test]
+    fn builder_sets_risk_context() {
+        let request = CreatePaymentRequest::builder()
+            .amount(Money::new_minor(1_000, "USD").expect("money should be valid"))
+            .reference("ORDER-1")
+            .expect("reference should be valid")
+            .payment_method(PaymentMethod::card())
+            .risk_context(RiskContext::new().with_account_age_days(3))
+            .build()
+            .expect("request should be valid");
+
+        assert_eq!(
+            request
+                .risk_context()
+                .expect("risk context should exist")
+                .account_age_days(),
+            Some(3)
+        );
     }
 
     #[test]

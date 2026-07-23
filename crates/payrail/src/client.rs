@@ -4,6 +4,9 @@ use crate::{
     RefundResponse, WebhookRequest,
 };
 
+#[cfg(feature = "fraud")]
+use crate::{FraudPolicy, RiskAssessment, RiskAwarePaymentSession};
+
 use crate::PaymentRouter;
 
 /// `PayRail` facade client.
@@ -30,6 +33,28 @@ impl PayRailClient {
         request: CreatePaymentRequest,
     ) -> Result<PaymentSession, PaymentError> {
         self.router.create_payment(request).await
+    }
+
+    /// Assesses payment risk using the default local fraud policy.
+    #[cfg(feature = "fraud")]
+    #[inline]
+    #[must_use]
+    pub fn assess_payment_risk(&self, request: &CreatePaymentRequest) -> RiskAssessment {
+        self.router.assess_payment_risk(request)
+    }
+
+    /// Assesses risk and creates a payment only when the policy allows provider execution.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when policy allows execution but routing or provider execution fails.
+    #[cfg(feature = "fraud")]
+    pub async fn create_payment_with_risk(
+        &self,
+        request: CreatePaymentRequest,
+        policy: &FraudPolicy,
+    ) -> Result<RiskAwarePaymentSession, PaymentError> {
+        self.router.create_payment_with_risk(request, policy).await
     }
 
     /// Gets payment status.
@@ -158,5 +183,30 @@ mod tests {
                 provider: PaymentProvider::PayPal
             })
         ));
+    }
+
+    #[cfg(feature = "fraud")]
+    #[tokio::test]
+    async fn client_delegates_risk_aware_payment_creation() {
+        let client = PayRailClient::new(PaymentRouter::new());
+        let request =
+            CreatePaymentRequest::builder()
+                .amount(crate::Money::new_minor(1_000, "USD").expect("money should be valid"))
+                .reference("ORDER-FRAUD")
+                .expect("reference should be valid")
+                .payment_method(crate::PaymentMethod::paypal())
+                .risk_context(crate::RiskContext::new().with_velocity(
+                    crate::VelocityRiskContext::new().with_chargebacks_last_90_days(1),
+                ))
+                .build()
+                .expect("request should be valid");
+
+        let result = client
+            .create_payment_with_risk(request, &FraudPolicy::new().enforce())
+            .await
+            .expect("enforced fraud rejection should return a risk-aware result");
+
+        assert!(result.payment().is_none());
+        assert_eq!(result.assessment().decision(), crate::RiskDecision::Reject);
     }
 }
