@@ -283,14 +283,36 @@ mod tests {
 
     #[test]
     fn provider_operation_values_are_stable() {
-        assert_eq!(
-            ProviderTelemetryOperation::CreatePayment.as_str(),
-            "create_payment"
-        );
-        assert_eq!(
-            ProviderTelemetryOperation::CheckoutSessionRetrieve.as_ref(),
-            "checkout_session_retrieve"
-        );
+        let cases = [
+            (ProviderTelemetryOperation::CreatePayment, "create_payment"),
+            (
+                ProviderTelemetryOperation::GetPaymentStatus,
+                "get_payment_status",
+            ),
+            (ProviderTelemetryOperation::RefundPayment, "refund_payment"),
+            (
+                ProviderTelemetryOperation::CapturePayment,
+                "capture_payment",
+            ),
+            (ProviderTelemetryOperation::ParseWebhook, "parse_webhook"),
+            (
+                ProviderTelemetryOperation::VerifyWebhookSignature,
+                "verify_webhook_signature",
+            ),
+            (
+                ProviderTelemetryOperation::FetchAccessToken,
+                "fetch_access_token",
+            ),
+            (
+                ProviderTelemetryOperation::CheckoutSessionRetrieve,
+                "checkout_session_retrieve",
+            ),
+        ];
+
+        for (operation, expected) in cases {
+            assert_eq!(operation.as_str(), expected);
+            assert_eq!(operation.as_ref(), expected);
+        }
     }
 
     #[test]
@@ -333,6 +355,12 @@ mod tests {
             Some(PaymentEventType::PaymentSucceeded),
             TelemetryResult::Ok,
         );
+        metrics.record_payment_request(
+            None,
+            TelemetryOperation::PaymentRefund,
+            TelemetryResult::Error,
+        );
+        metrics.record_webhook(&PaymentProvider::Stripe, None, TelemetryResult::Error);
     }
 
     #[cfg(feature = "fraud")]
@@ -349,6 +377,17 @@ mod tests {
             attribute.key.as_str() == "risk_decision" && attribute.value.as_str() == "reject"
         }));
         assert!(!format!("{attributes:?}").contains("risk_secret_reference"));
+    }
+
+    #[cfg(feature = "fraud")]
+    #[test]
+    fn fraud_metrics_can_be_recorded() {
+        let meter = global::meter("payrail.fraud.metrics.test");
+        let metrics = PayRailOtelMetrics::new(&meter);
+        let assessment = RiskAssessment::new(RiskDecision::Review).with_level(RiskLevel::High);
+
+        metrics.record_fraud_assessment(&assessment, TelemetryResult::Error);
+        metrics.record_fraud_policy_block(RiskDecision::Reject);
     }
 
     #[test]
