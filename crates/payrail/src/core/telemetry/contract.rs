@@ -5,6 +5,11 @@ use crate::{
     TELEMETRY_FIELD_PAYMENT_METHOD, TELEMETRY_FIELD_PROVIDER, TELEMETRY_FIELD_RESULT,
     TELEMETRY_FIELD_STATUS,
 };
+#[cfg(feature = "fraud")]
+use crate::{
+    TELEMETRY_FIELD_FRAUD_EVENT_TYPE, TELEMETRY_FIELD_POLICY_MODE, TELEMETRY_FIELD_PROVIDER_IO,
+    TELEMETRY_FIELD_REASON_COUNT, TELEMETRY_FIELD_RISK_DECISION, TELEMETRY_FIELD_RISK_LEVEL,
+};
 
 /// PayRail telemetry contract.
 ///
@@ -31,6 +36,18 @@ pub const ALLOWED_FIELDS: &[&str] = &[
     TELEMETRY_FIELD_HTTP_STATUS,
     TELEMETRY_FIELD_RESULT,
     TELEMETRY_FIELD_ERROR_KIND,
+    #[cfg(feature = "fraud")]
+    TELEMETRY_FIELD_RISK_DECISION,
+    #[cfg(feature = "fraud")]
+    TELEMETRY_FIELD_RISK_LEVEL,
+    #[cfg(feature = "fraud")]
+    TELEMETRY_FIELD_REASON_COUNT,
+    #[cfg(feature = "fraud")]
+    TELEMETRY_FIELD_POLICY_MODE,
+    #[cfg(feature = "fraud")]
+    TELEMETRY_FIELD_PROVIDER_IO,
+    #[cfg(feature = "fraud")]
+    TELEMETRY_FIELD_FRAUD_EVENT_TYPE,
 ];
 
 /// Data categories that must not be emitted by PayRail telemetry.

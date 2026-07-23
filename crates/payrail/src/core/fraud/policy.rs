@@ -2,6 +2,8 @@ use crate::{
     CreatePaymentRequest, PaymentMethod, RiskAssessment, RiskContext, RiskDecision, RiskLevel,
     RiskReason, RiskReasonCode, RiskScore, VerificationStatus,
 };
+#[cfg(feature = "telemetry")]
+use crate::{TelemetryOperation, emit_fraud_assessment, fraud_policy_mode_name};
 
 /// How a fraud policy affects payment execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -120,6 +122,24 @@ impl FraudPolicy {
     /// Assesses payment risk using local policy rules.
     #[must_use]
     pub fn assess_request(&self, request: &CreatePaymentRequest) -> RiskAssessment {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::info_span!(
+                "payrail.fraud.policy.evaluate",
+                "payrail.operation" = TelemetryOperation::FraudPolicyEvaluate.as_str(),
+                "payrail.policy_mode" = fraud_policy_mode_name(self.mode())
+            );
+            let _guard = span.enter();
+            let assessment = self.assess_request_inner(request);
+            emit_fraud_assessment(TelemetryOperation::FraudPolicyEvaluate, &assessment, "none");
+            assessment
+        }
+
+        #[cfg(not(feature = "telemetry"))]
+        self.assess_request_inner(request)
+    }
+
+    fn assess_request_inner(&self, request: &CreatePaymentRequest) -> RiskAssessment {
         let mut score = 0;
         let mut reasons = Vec::new();
 

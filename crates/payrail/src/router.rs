@@ -11,6 +11,8 @@ use crate::{
 use crate::{FraudEvent, FraudPolicy, RiskAssessment, RiskAwarePaymentSession};
 #[cfg(feature = "telemetry")]
 use crate::{TelemetryOperation, emit_result, payment_method_kind, provider_name};
+#[cfg(all(feature = "fraud", feature = "telemetry"))]
+use crate::{emit_fraud_assessment, fraud_event_type_name, fraud_policy_mode_name};
 #[cfg(feature = "telemetry")]
 use tracing::Instrument;
 
@@ -206,6 +208,20 @@ impl PaymentRouter {
     #[inline]
     #[must_use]
     pub fn assess_payment_risk(&self, request: &CreatePaymentRequest) -> RiskAssessment {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::debug_span!(
+                "payrail.router.fraud.assess",
+                "payrail.operation" = TelemetryOperation::FraudAssess.as_str(),
+                "payrail.payment_method" = payment_method_kind(request.payment_method())
+            );
+            let _guard = span.enter();
+            let assessment = FraudPolicy::default().assess_request(request);
+            emit_fraud_assessment(TelemetryOperation::FraudAssess, &assessment, "none");
+            assessment
+        }
+
+        #[cfg(not(feature = "telemetry"))]
         FraudPolicy::default().assess_request(request)
     }
 
@@ -219,6 +235,49 @@ impl PaymentRouter {
     /// Returns an error when policy allows execution but routing or provider execution fails.
     #[cfg(feature = "fraud")]
     pub async fn create_payment_with_risk(
+        &self,
+        request: CreatePaymentRequest,
+        policy: &FraudPolicy,
+    ) -> Result<RiskAwarePaymentSession, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::debug_span!(
+                "payrail.router.payment.create_with_risk",
+                "payrail.operation" = TelemetryOperation::PaymentCreateWithRisk.as_str(),
+                "payrail.payment_method" = payment_method_kind(request.payment_method()),
+                "payrail.policy_mode" = fraud_policy_mode_name(policy.mode())
+            );
+            return async {
+                let result = self.create_payment_with_risk_inner(request, policy).await;
+                if let Ok(session) = result.as_ref() {
+                    let provider_io = if session.payment().is_some() {
+                        "attempted"
+                    } else {
+                        "skipped"
+                    };
+                    emit_fraud_assessment(
+                        TelemetryOperation::PaymentCreateWithRisk,
+                        session.assessment(),
+                        provider_io,
+                    );
+                }
+                emit_result(
+                    TelemetryOperation::PaymentCreateWithRisk,
+                    &result,
+                    "router risk-aware payment create completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
+        self.create_payment_with_risk_inner(request, policy).await
+    }
+
+    #[cfg(feature = "fraud")]
+    async fn create_payment_with_risk_inner(
         &self,
         request: CreatePaymentRequest,
         policy: &FraudPolicy,
@@ -514,6 +573,50 @@ impl PaymentRouter {
     /// Returns an error when the provider is not configured or parsing fails.
     #[cfg(feature = "fraud")]
     pub async fn parse_fraud_webhook(
+        &self,
+        provider: PaymentProvider,
+        request: WebhookRequest<'_>,
+    ) -> Result<FraudEvent, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::debug_span!(
+                "payrail.router.webhook.parse",
+                "payrail.operation" = TelemetryOperation::WebhookParse.as_str(),
+                "payrail.provider" = provider_name(&provider),
+                "payrail.payload_len" = request.payload.len()
+            );
+            return async {
+                let result = self.parse_fraud_webhook_inner(provider, request).await;
+                if let Ok(event) = result.as_ref() {
+                    tracing::debug!(
+                        "payrail.fraud_event_type" = fraud_event_type_name(event.event_type()),
+                        "router fraud webhook event normalized"
+                    );
+                    if let Some(assessment) = event.assessment() {
+                        emit_fraud_assessment(
+                            TelemetryOperation::WebhookParse,
+                            assessment,
+                            "received",
+                        );
+                    }
+                }
+                emit_result(
+                    TelemetryOperation::WebhookParse,
+                    &result,
+                    "router fraud webhook parse completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
+        self.parse_fraud_webhook_inner(provider, request).await
+    }
+
+    #[cfg(feature = "fraud")]
+    async fn parse_fraud_webhook_inner(
         &self,
         provider: PaymentProvider,
         request: WebhookRequest<'_>,

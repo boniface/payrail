@@ -1,6 +1,8 @@
 use crate::{PaymentError, TelemetryOperation, error_kind};
 #[cfg(any(feature = "lipila", feature = "paypal", feature = "stripe"))]
 use crate::{PaymentProvider, provider_name};
+#[cfg(feature = "fraud")]
+use crate::{RiskAssessment, risk_decision_name, risk_level_name};
 
 /// Emits a low-cardinality operation result event.
 pub(crate) fn emit_result<T>(
@@ -40,9 +42,28 @@ pub(crate) fn emit_provider_request_result(
     );
 }
 
+/// Emits a low-cardinality fraud risk assessment event.
+#[cfg(feature = "fraud")]
+pub(crate) fn emit_fraud_assessment(
+    operation: TelemetryOperation,
+    assessment: &RiskAssessment,
+    provider_io: &'static str,
+) {
+    tracing::debug!(
+        "payrail.operation" = operation.as_str(),
+        "payrail.risk_decision" = risk_decision_name(assessment.decision()),
+        "payrail.risk_level" = assessment.level().map_or("unknown", risk_level_name),
+        "payrail.reason_count" = assessment.reasons().len(),
+        "payrail.provider_io" = provider_io,
+        "fraud assessment completed"
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{PaymentError, TelemetryOperation};
+    #[cfg(feature = "fraud")]
+    use crate::{RiskAssessment, RiskDecision};
 
     use super::*;
 
@@ -65,5 +86,13 @@ mod tests {
             500,
             false,
         );
+    }
+
+    #[cfg(feature = "fraud")]
+    #[test]
+    fn emits_fraud_assessment_result() {
+        let assessment = RiskAssessment::new(RiskDecision::Reject);
+
+        emit_fraud_assessment(TelemetryOperation::FraudAssess, &assessment, "skipped");
     }
 }
