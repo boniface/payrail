@@ -440,17 +440,58 @@ mod tests {
 
     #[cfg(feature = "fraud")]
     #[test]
-    fn fraud_names_are_low_cardinality() {
-        assert_eq!(risk_decision_name(RiskDecision::Reject), "reject");
-        assert_eq!(risk_level_name(RiskLevel::Critical), "critical");
-        assert_eq!(
-            fraud_policy_mode_name(FraudPolicyMode::ObserveOnly),
-            "observe_only"
-        );
-        assert_eq!(
-            fraud_event_type_name(FraudEventType::EarlyFraudWarningCreated),
-            "early_fraud_warning_created"
-        );
+    fn fraud_names_are_stable_and_low_cardinality() {
+        let decision_cases = [
+            (RiskDecision::Allow, "allow"),
+            (RiskDecision::Challenge, "challenge"),
+            (RiskDecision::Review, "review"),
+            (RiskDecision::Reject, "reject"),
+        ];
+        let level_cases = [
+            (RiskLevel::Low, "low"),
+            (RiskLevel::Medium, "medium"),
+            (RiskLevel::High, "high"),
+            (RiskLevel::Critical, "critical"),
+        ];
+        let policy_cases = [
+            (FraudPolicyMode::ObserveOnly, "observe_only"),
+            (FraudPolicyMode::Enforce, "enforce"),
+        ];
+        let event_cases = [
+            (
+                FraudEventType::RiskAssessmentCreated,
+                "risk_assessment_created",
+            ),
+            (
+                FraudEventType::RiskAssessmentUpdated,
+                "risk_assessment_updated",
+            ),
+            (
+                FraudEventType::EarlyFraudWarningCreated,
+                "early_fraud_warning_created",
+            ),
+            (FraudEventType::ReviewOpened, "review_opened"),
+            (FraudEventType::ReviewApproved, "review_approved"),
+            (FraudEventType::ReviewRejected, "review_rejected"),
+            (FraudEventType::ReviewExpired, "review_expired"),
+            (FraudEventType::DisputeOpened, "dispute_opened"),
+            (FraudEventType::DisputeUpdated, "dispute_updated"),
+            (FraudEventType::DisputeWon, "dispute_won"),
+            (FraudEventType::DisputeLost, "dispute_lost"),
+        ];
+
+        for (decision, expected) in decision_cases {
+            assert_eq!(risk_decision_name(decision), expected);
+        }
+        for (level, expected) in level_cases {
+            assert_eq!(risk_level_name(level), expected);
+        }
+        for (mode, expected) in policy_cases {
+            assert_eq!(fraud_policy_mode_name(mode), expected);
+        }
+        for (event_type, expected) in event_cases {
+            assert_eq!(fraud_event_type_name(event_type), expected);
+        }
     }
 
     #[cfg(feature = "fraud")]
