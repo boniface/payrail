@@ -18,6 +18,8 @@ mod provider;
 mod reference;
 mod refund;
 mod status;
+#[cfg(feature = "telemetry")]
+mod telemetry;
 mod webhook;
 
 pub use amount::MinorAmount;
@@ -47,4 +49,6 @@ pub use provider::{BuiltinProvider, PaymentProvider};
 pub use reference::{MerchantReference, PaymentId, ProviderReference, WebhookEventId};
 pub use refund::{CaptureRequest, CaptureResponse, RefundRequest, RefundResponse};
 pub use status::PaymentStatus;
+#[cfg(feature = "telemetry")]
+pub use telemetry::*;
 pub use webhook::WebhookRequest;
