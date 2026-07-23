@@ -9,6 +9,10 @@ use crate::{
 
 #[cfg(feature = "fraud")]
 use crate::{FraudEvent, FraudPolicy, RiskAssessment, RiskAwarePaymentSession};
+#[cfg(feature = "telemetry")]
+use crate::{TelemetryOperation, emit_result, payment_method_kind, provider_name};
+#[cfg(feature = "telemetry")]
+use tracing::Instrument;
 
 /// Provider router used by the facade.
 #[derive(Clone)]
@@ -169,8 +173,32 @@ impl PaymentRouter {
         &self,
         request: CreatePaymentRequest,
     ) -> Result<PaymentSession, PaymentError> {
-        let provider = self.resolve_provider(request.payment_method())?;
-        self.create_payment_with_provider(provider, request).await
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::debug_span!(
+                "payrail.router.payment.create",
+                "payrail.operation" = TelemetryOperation::PaymentCreate.as_str(),
+                "payrail.payment_method" = payment_method_kind(request.payment_method())
+            );
+            return async {
+                let provider = self.resolve_provider(request.payment_method())?;
+                let result = self.create_payment_with_provider(provider, request).await;
+                emit_result(
+                    TelemetryOperation::PaymentCreate,
+                    &result,
+                    "router payment create completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
+        {
+            let provider = self.resolve_provider(request.payment_method())?;
+            self.create_payment_with_provider(provider, request).await
+        }
     }
 
     /// Assesses payment risk using the default local fraud policy.
@@ -230,6 +258,38 @@ impl PaymentRouter {
         provider: PaymentProvider,
         provider_reference: &ProviderReference,
     ) -> Result<PaymentStatusResponse, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::debug_span!(
+                "payrail.router.payment.status",
+                "payrail.operation" = TelemetryOperation::PaymentStatus.as_str(),
+                "payrail.provider" = provider_name(&provider)
+            );
+            return async {
+                let result = self
+                    .get_payment_status_inner(provider, provider_reference)
+                    .await;
+                emit_result(
+                    TelemetryOperation::PaymentStatus,
+                    &result,
+                    "router payment status completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
+        self.get_payment_status_inner(provider, provider_reference)
+            .await
+    }
+
+    async fn get_payment_status_inner(
+        &self,
+        provider: PaymentProvider,
+        provider_reference: &ProviderReference,
+    ) -> Result<PaymentStatusResponse, PaymentError> {
         let _ = provider_reference;
         match provider.as_builtin() {
             Some(BuiltinProvider::Stripe) => {
@@ -264,6 +324,34 @@ impl PaymentRouter {
     ///
     /// Returns an error when the provider is not configured.
     pub async fn refund_payment(
+        &self,
+        request: RefundRequest,
+    ) -> Result<RefundResponse, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::debug_span!(
+                "payrail.router.payment.refund",
+                "payrail.operation" = TelemetryOperation::PaymentRefund.as_str(),
+                "payrail.provider" = provider_name(&request.provider)
+            );
+            return async {
+                let result = self.refund_payment_inner(request).await;
+                emit_result(
+                    TelemetryOperation::PaymentRefund,
+                    &result,
+                    "router payment refund completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
+        self.refund_payment_inner(request).await
+    }
+
+    async fn refund_payment_inner(
         &self,
         request: RefundRequest,
     ) -> Result<RefundResponse, PaymentError> {
@@ -305,6 +393,34 @@ impl PaymentRouter {
         &self,
         request: CaptureRequest,
     ) -> Result<CaptureResponse, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::debug_span!(
+                "payrail.router.payment.capture",
+                "payrail.operation" = TelemetryOperation::PaymentCapture.as_str(),
+                "payrail.provider" = provider_name(&request.provider)
+            );
+            return async {
+                let result = self.capture_payment_inner(request).await;
+                emit_result(
+                    TelemetryOperation::PaymentCapture,
+                    &result,
+                    "router payment capture completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
+        self.capture_payment_inner(request).await
+    }
+
+    async fn capture_payment_inner(
+        &self,
+        request: CaptureRequest,
+    ) -> Result<CaptureResponse, PaymentError> {
         match request.provider.as_builtin() {
             Some(BuiltinProvider::PayPal) => {
                 #[cfg(feature = "paypal")]
@@ -329,6 +445,36 @@ impl PaymentRouter {
     ///
     /// Returns an error when the provider is not configured or parsing fails.
     pub async fn parse_webhook(
+        &self,
+        provider: PaymentProvider,
+        request: WebhookRequest<'_>,
+    ) -> Result<PaymentEvent, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::debug_span!(
+                "payrail.router.webhook.parse",
+                "payrail.operation" = TelemetryOperation::WebhookParse.as_str(),
+                "payrail.provider" = provider_name(&provider),
+                "payrail.payload_len" = request.payload.len()
+            );
+            return async {
+                let result = self.parse_webhook_inner(provider, request).await;
+                emit_result(
+                    TelemetryOperation::WebhookParse,
+                    &result,
+                    "router webhook parse completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
+        self.parse_webhook_inner(provider, request).await
+    }
+
+    async fn parse_webhook_inner(
         &self,
         provider: PaymentProvider,
         request: WebhookRequest<'_>,

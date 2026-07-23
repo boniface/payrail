@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+#[cfg(feature = "telemetry")]
+use crate::emit_provider_request_result;
 use crate::{PaymentError, PaymentProvider, ProviderErrorDetails};
 use secrecy::ExposeSecret;
 use time::{Duration, OffsetDateTime};
@@ -61,10 +63,17 @@ async fn fetch_token(
         .send()
         .await?;
     let status = response.status();
+    #[cfg(feature = "telemetry")]
+    emit_provider_request_result(
+        &PaymentProvider::PayPal,
+        "fetch_access_token",
+        status.as_u16(),
+        status.is_success(),
+    );
     tracing::debug!(
-        provider = "paypal",
-        operation = "fetch_access_token",
-        status = status.as_u16(),
+        "payrail.provider" = "paypal",
+        "payrail.operation" = "fetch_access_token",
+        "payrail.http_status" = status.as_u16(),
         "received provider response"
     );
     if !status.is_success() {

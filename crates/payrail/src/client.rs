@@ -6,8 +6,14 @@ use crate::{
 
 #[cfg(feature = "fraud")]
 use crate::{FraudEvent, FraudPolicy, RiskAssessment, RiskAwarePaymentSession};
+#[cfg(feature = "telemetry")]
+use crate::{
+    TelemetryOperation, emit_result, payment_method_kind, payment_status_name, provider_name,
+};
 
 use crate::PaymentRouter;
+#[cfg(feature = "telemetry")]
+use tracing::Instrument;
 
 /// `PayRail` facade client.
 #[derive(Debug, Clone)]
@@ -32,6 +38,31 @@ impl PayRailClient {
         &self,
         request: CreatePaymentRequest,
     ) -> Result<PaymentSession, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::info_span!(
+                "payrail.payment.create",
+                "payrail.operation" = TelemetryOperation::PaymentCreate.as_str(),
+                "payrail.payment_method" = payment_method_kind(request.payment_method()),
+                "payrail.checkout_ui_mode" =
+                    crate::checkout_ui_mode_name(request.checkout_ui_mode()),
+                "payrail.has_idempotency_key" = request.idempotency_key().is_some(),
+                "payrail.has_callback_url" = request.callback_url().is_some()
+            );
+            return async {
+                let result = self.router.create_payment(request).await;
+                emit_result(
+                    TelemetryOperation::PaymentCreate,
+                    &result,
+                    "payment create completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
         self.router.create_payment(request).await
     }
 
@@ -67,6 +98,36 @@ impl PayRailClient {
         provider: PaymentProvider,
         provider_reference: &ProviderReference,
     ) -> Result<PaymentStatusResponse, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::info_span!(
+                "payrail.payment.status",
+                "payrail.operation" = TelemetryOperation::PaymentStatus.as_str(),
+                "payrail.provider" = provider_name(&provider)
+            );
+            return async {
+                let result = self
+                    .router
+                    .get_payment_status(provider, provider_reference)
+                    .await;
+                if let Ok(status) = result.as_ref() {
+                    tracing::debug!(
+                        "payrail.status" = payment_status_name(status.status()),
+                        "payment status normalized"
+                    );
+                }
+                emit_result(
+                    TelemetryOperation::PaymentStatus,
+                    &result,
+                    "payment status completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
         self.router
             .get_payment_status(provider, provider_reference)
             .await
@@ -81,6 +142,27 @@ impl PayRailClient {
         &self,
         request: RefundRequest,
     ) -> Result<RefundResponse, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::info_span!(
+                "payrail.payment.refund",
+                "payrail.operation" = TelemetryOperation::PaymentRefund.as_str(),
+                "payrail.provider" = provider_name(&request.provider)
+            );
+            return async {
+                let result = self.router.refund_payment(request).await;
+                emit_result(
+                    TelemetryOperation::PaymentRefund,
+                    &result,
+                    "payment refund completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
         self.router.refund_payment(request).await
     }
 
@@ -93,6 +175,27 @@ impl PayRailClient {
         &self,
         request: CaptureRequest,
     ) -> Result<CaptureResponse, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::info_span!(
+                "payrail.payment.capture",
+                "payrail.operation" = TelemetryOperation::PaymentCapture.as_str(),
+                "payrail.provider" = provider_name(&request.provider)
+            );
+            return async {
+                let result = self.router.capture_payment(request).await;
+                emit_result(
+                    TelemetryOperation::PaymentCapture,
+                    &result,
+                    "payment capture completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
         self.router.capture_payment(request).await
     }
 
@@ -106,6 +209,35 @@ impl PayRailClient {
         provider: PaymentProvider,
         request: WebhookRequest<'_>,
     ) -> Result<PaymentEvent, PaymentError> {
+        #[cfg(feature = "telemetry")]
+        {
+            let span = tracing::info_span!(
+                "payrail.webhook.parse",
+                "payrail.operation" = TelemetryOperation::WebhookParse.as_str(),
+                "payrail.provider" = provider_name(&provider),
+                "payrail.payload_len" = request.payload.len()
+            );
+            return async {
+                let result = self.router.parse_webhook(provider, request).await;
+                if let Ok(event) = result.as_ref() {
+                    tracing::debug!(
+                        "payrail.event_type" = crate::payment_event_type_name(event.event_type()),
+                        "payrail.status" = payment_status_name(event.status()),
+                        "webhook event normalized"
+                    );
+                }
+                emit_result(
+                    TelemetryOperation::WebhookParse,
+                    &result,
+                    "webhook parse completed",
+                );
+                result
+            }
+            .instrument(span)
+            .await;
+        }
+
+        #[cfg(not(feature = "telemetry"))]
         self.router.parse_webhook(provider, request).await
     }
 

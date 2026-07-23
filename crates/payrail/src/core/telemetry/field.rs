@@ -18,5 +18,7 @@ pub const TELEMETRY_FIELD_HAS_CALLBACK_URL: &str = "payrail.has_callback_url";
 pub const TELEMETRY_FIELD_PAYLOAD_LEN: &str = "payrail.payload_len";
 /// Provider HTTP status field.
 pub const TELEMETRY_FIELD_HTTP_STATUS: &str = "payrail.http_status";
+/// Low-cardinality operation result field.
+pub const TELEMETRY_FIELD_RESULT: &str = "payrail.result";
 /// Normalized error kind field.
 pub const TELEMETRY_FIELD_ERROR_KIND: &str = "payrail.error_kind";

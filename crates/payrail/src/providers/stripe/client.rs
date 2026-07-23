@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+#[cfg(feature = "telemetry")]
+use crate::emit_provider_request_result;
 use crate::{
     CheckoutUiMode, CreatePaymentRequest, MerchantReference, Metadata, NextAction, PaymentError,
     PaymentEvent, PaymentMethod, PaymentProvider, PaymentSession, PaymentStatusResponse,
@@ -54,9 +56,17 @@ impl StripeConnector {
 
     async fn parse_response<T: serde::de::DeserializeOwned>(
         &self,
+        operation: &'static str,
         response: reqwest::Response,
     ) -> Result<T, PaymentError> {
         let status = response.status();
+        #[cfg(feature = "telemetry")]
+        emit_provider_request_result(
+            &PaymentProvider::Stripe,
+            operation,
+            status.as_u16(),
+            status.is_success(),
+        );
         if status.is_success() {
             return Ok(response.json::<T>().await?);
         }
@@ -100,6 +110,7 @@ impl StripeConnector {
     ) -> Result<StripeCheckoutSession, PaymentError> {
         let path = format!("/v1/checkout/sessions/{}", provider_reference.as_str());
         self.parse_response(
+            "checkout_session_retrieve",
             self.client
                 .get(self.endpoint(&path)?)
                 .bearer_auth(self.config.secret_key().expose_secret())
@@ -129,9 +140,9 @@ impl StripeConnector {
             .and_then(|value| value.to_str().ok())
             .ok_or(PaymentError::WebhookVerificationFailed)?;
         tracing::debug!(
-            provider = "stripe",
-            operation = "parse_webhook",
-            payload_len = request.payload.len(),
+            "payrail.provider" = "stripe",
+            "payrail.operation" = "parse_webhook",
+            "payrail.payload_len" = request.payload.len(),
             "verifying webhook signature"
         );
         verify_signature(request.payload, signature, secret)?;
@@ -188,13 +199,15 @@ impl StripeConnector {
         }
 
         tracing::debug!(
-            provider = "stripe",
-            operation = "create_payment",
-            payment_method = payment_method_type,
-            has_idempotency_key = request.idempotency_key().is_some(),
+            "payrail.provider" = "stripe",
+            "payrail.operation" = "create_payment",
+            "payrail.payment_method" = payment_method_type,
+            "payrail.has_idempotency_key" = request.idempotency_key().is_some(),
             "sending provider request"
         );
-        let session: StripeCheckoutSession = self.parse_response(builder.send().await?).await?;
+        let session: StripeCheckoutSession = self
+            .parse_response("create_payment", builder.send().await?)
+            .await?;
         let StripeCheckoutSession {
             id,
             client_secret,
@@ -225,8 +238,8 @@ impl StripeConnector {
         provider_reference: &ProviderReference,
     ) -> Result<PaymentStatusResponse, PaymentError> {
         tracing::debug!(
-            provider = "stripe",
-            operation = "get_payment_status",
+            "payrail.provider" = "stripe",
+            "payrail.operation" = "get_payment_status",
             "sending provider request"
         );
         let session = self.checkout_session(provider_reference).await?;
@@ -260,13 +273,13 @@ impl StripeConnector {
             form.push(("amount", Cow::Owned(amount.amount().value().to_string())));
         }
         tracing::debug!(
-            provider = "stripe",
-            operation = "refund_payment",
-            has_partial_amount = request.amount.is_some(),
+            "payrail.provider" = "stripe",
+            "payrail.operation" = "refund_payment",
             "sending provider request"
         );
         let refund: StripeRefund = self
             .parse_response(
+                "refund_payment",
                 self.client
                     .post(self.endpoint("/v1/refunds")?)
                     .bearer_auth(self.config.secret_key().expose_secret())
