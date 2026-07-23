@@ -39,3 +39,31 @@ pub(crate) fn emit_provider_request_result(
         "provider request completed"
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{PaymentError, TelemetryOperation};
+
+    use super::*;
+
+    #[test]
+    fn emits_success_and_error_results() {
+        let ok: Result<(), PaymentError> = Ok(());
+        let error: Result<(), PaymentError> = Err(PaymentError::AuthenticationFailed);
+
+        emit_result(TelemetryOperation::PaymentCreate, &ok, "ok result");
+        emit_result(TelemetryOperation::PaymentCreate, &error, "error result");
+    }
+
+    #[cfg(any(feature = "lipila", feature = "paypal", feature = "stripe"))]
+    #[test]
+    fn emits_provider_request_results() {
+        emit_provider_request_result(&crate::PaymentProvider::Stripe, "create_payment", 200, true);
+        emit_provider_request_result(
+            &crate::PaymentProvider::Stripe,
+            "create_payment",
+            500,
+            false,
+        );
+    }
+}

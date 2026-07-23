@@ -60,13 +60,36 @@ mod tests {
 
     #[test]
     fn operation_names_match_contract() {
-        assert_eq!(
-            TelemetryOperation::PaymentCreate.as_str(),
-            "payrail.payment.create"
-        );
-        assert_eq!(
-            TelemetryOperation::ProviderRequest.as_str(),
-            "payrail.provider.request"
-        );
+        let cases = [
+            (TelemetryOperation::PaymentCreate, "payrail.payment.create"),
+            (TelemetryOperation::PaymentStatus, "payrail.payment.status"),
+            (TelemetryOperation::PaymentRefund, "payrail.payment.refund"),
+            (
+                TelemetryOperation::PaymentCapture,
+                "payrail.payment.capture",
+            ),
+            (TelemetryOperation::WebhookParse, "payrail.webhook.parse"),
+            (
+                TelemetryOperation::ProviderRequest,
+                "payrail.provider.request",
+            ),
+            #[cfg(feature = "fraud")]
+            (TelemetryOperation::FraudAssess, "payrail.fraud.assess"),
+            #[cfg(feature = "fraud")]
+            (
+                TelemetryOperation::PaymentCreateWithRisk,
+                "payrail.payment.create_with_risk",
+            ),
+            #[cfg(feature = "fraud")]
+            (
+                TelemetryOperation::FraudPolicyEvaluate,
+                "payrail.fraud.policy.evaluate",
+            ),
+        ];
+
+        for (operation, expected) in cases {
+            assert_eq!(operation.as_str(), expected);
+            assert_eq!(operation.as_ref(), expected);
+        }
     }
 }
