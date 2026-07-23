@@ -35,6 +35,12 @@ pub(super) fn map_event_type(event_type: &str) -> (PaymentEventType, PaymentStat
         "refund.created" | "refund.updated" => {
             (PaymentEventType::RefundCreated, PaymentStatus::Processing)
         }
+        "charge.dispute.created" => (
+            PaymentEventType::DisputeOpened,
+            PaymentStatus::RequiresAction,
+        ),
+        "charge.dispute.updated" => (PaymentEventType::DisputeUpdated, PaymentStatus::Processing),
+        "charge.dispute.closed" => (PaymentEventType::DisputeUpdated, PaymentStatus::Processing),
         _ => (PaymentEventType::PaymentPending, PaymentStatus::Processing),
     }
 }
@@ -109,6 +115,13 @@ mod tests {
         assert_eq!(
             map_event_type("refund.created"),
             (PaymentEventType::RefundCreated, PaymentStatus::Processing)
+        );
+        assert_eq!(
+            map_event_type("charge.dispute.created"),
+            (
+                PaymentEventType::DisputeOpened,
+                PaymentStatus::RequiresAction
+            )
         );
     }
 }

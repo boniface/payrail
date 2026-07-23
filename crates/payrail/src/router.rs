@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[cfg(feature = "fraud")]
-use crate::{FraudPolicy, RiskAssessment, RiskAwarePaymentSession};
+use crate::{FraudEvent, FraudPolicy, RiskAssessment, RiskAwarePaymentSession};
 
 /// Provider router used by the facade.
 #[derive(Clone)]
@@ -357,6 +357,34 @@ impl PaymentRouter {
                 Err(Self::not_configured(BuiltinProvider::Lipila))
             }
             Some(provider) => Err(Self::not_configured(provider)),
+            None => Err(PaymentError::ConnectorNotConfigured { provider }),
+        }
+    }
+
+    /// Parses a provider fraud or dispute webhook.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the provider is not configured or parsing fails.
+    #[cfg(feature = "fraud")]
+    pub async fn parse_fraud_webhook(
+        &self,
+        provider: PaymentProvider,
+        request: WebhookRequest<'_>,
+    ) -> Result<FraudEvent, PaymentError> {
+        let _ = &request;
+        match provider.as_builtin() {
+            Some(BuiltinProvider::Stripe) => {
+                #[cfg(feature = "stripe")]
+                if let Some(connector) = self.stripe.as_ref() {
+                    return connector.parse_fraud_webhook(request).await;
+                }
+                Err(Self::not_configured(BuiltinProvider::Stripe))
+            }
+            Some(provider) => Err(PaymentError::UnsupportedOperation(format!(
+                "{:?} fraud webhooks are not supported",
+                PaymentProvider::from(provider)
+            ))),
             None => Err(PaymentError::ConnectorNotConfigured { provider }),
         }
     }
