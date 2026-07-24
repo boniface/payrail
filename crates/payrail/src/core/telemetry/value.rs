@@ -1,6 +1,8 @@
 use crate::{
     CheckoutUiMode, PaymentError, PaymentEventType, PaymentMethod, PaymentProvider, PaymentStatus,
 };
+#[cfg(feature = "fraud")]
+use crate::{FraudEventType, FraudPolicyMode, RiskDecision, RiskLevel};
 
 /// Returns a low-cardinality provider name.
 #[inline]
@@ -121,6 +123,63 @@ pub const fn error_kind(error: &PaymentError) -> &'static str {
         PaymentError::UnsupportedOperation(_) => "unsupported_operation",
         PaymentError::Http(_) => "http",
         PaymentError::Json(_) => "json",
+    }
+}
+
+/// Returns a low-cardinality fraud risk decision name.
+#[cfg(feature = "fraud")]
+#[inline]
+#[must_use]
+pub const fn risk_decision_name(decision: RiskDecision) -> &'static str {
+    match decision {
+        RiskDecision::Allow => "allow",
+        RiskDecision::Challenge => "challenge",
+        RiskDecision::Review => "review",
+        RiskDecision::Reject => "reject",
+    }
+}
+
+/// Returns a low-cardinality fraud risk level name.
+#[cfg(feature = "fraud")]
+#[inline]
+#[must_use]
+pub const fn risk_level_name(level: RiskLevel) -> &'static str {
+    match level {
+        RiskLevel::Low => "low",
+        RiskLevel::Medium => "medium",
+        RiskLevel::High => "high",
+        RiskLevel::Critical => "critical",
+    }
+}
+
+/// Returns a low-cardinality fraud policy mode name.
+#[cfg(feature = "fraud")]
+#[inline]
+#[must_use]
+pub const fn fraud_policy_mode_name(mode: FraudPolicyMode) -> &'static str {
+    match mode {
+        FraudPolicyMode::ObserveOnly => "observe_only",
+        FraudPolicyMode::Enforce => "enforce",
+    }
+}
+
+/// Returns a low-cardinality fraud event type name.
+#[cfg(feature = "fraud")]
+#[inline]
+#[must_use]
+pub const fn fraud_event_type_name(event_type: FraudEventType) -> &'static str {
+    match event_type {
+        FraudEventType::RiskAssessmentCreated => "risk_assessment_created",
+        FraudEventType::RiskAssessmentUpdated => "risk_assessment_updated",
+        FraudEventType::EarlyFraudWarningCreated => "early_fraud_warning_created",
+        FraudEventType::ReviewOpened => "review_opened",
+        FraudEventType::ReviewApproved => "review_approved",
+        FraudEventType::ReviewRejected => "review_rejected",
+        FraudEventType::ReviewExpired => "review_expired",
+        FraudEventType::DisputeOpened => "dispute_opened",
+        FraudEventType::DisputeUpdated => "dispute_updated",
+        FraudEventType::DisputeWon => "dispute_won",
+        FraudEventType::DisputeLost => "dispute_lost",
     }
 }
 
@@ -377,5 +436,79 @@ mod tests {
 
         assert_eq!(reference.as_str(), "ORDER-1");
         assert_eq!(provider_name(&PaymentProvider::Stripe), "stripe");
+    }
+
+    #[cfg(feature = "fraud")]
+    #[test]
+    fn fraud_names_are_stable_and_low_cardinality() {
+        let decision_cases = [
+            (RiskDecision::Allow, "allow"),
+            (RiskDecision::Challenge, "challenge"),
+            (RiskDecision::Review, "review"),
+            (RiskDecision::Reject, "reject"),
+        ];
+        let level_cases = [
+            (RiskLevel::Low, "low"),
+            (RiskLevel::Medium, "medium"),
+            (RiskLevel::High, "high"),
+            (RiskLevel::Critical, "critical"),
+        ];
+        let policy_cases = [
+            (FraudPolicyMode::ObserveOnly, "observe_only"),
+            (FraudPolicyMode::Enforce, "enforce"),
+        ];
+        let event_cases = [
+            (
+                FraudEventType::RiskAssessmentCreated,
+                "risk_assessment_created",
+            ),
+            (
+                FraudEventType::RiskAssessmentUpdated,
+                "risk_assessment_updated",
+            ),
+            (
+                FraudEventType::EarlyFraudWarningCreated,
+                "early_fraud_warning_created",
+            ),
+            (FraudEventType::ReviewOpened, "review_opened"),
+            (FraudEventType::ReviewApproved, "review_approved"),
+            (FraudEventType::ReviewRejected, "review_rejected"),
+            (FraudEventType::ReviewExpired, "review_expired"),
+            (FraudEventType::DisputeOpened, "dispute_opened"),
+            (FraudEventType::DisputeUpdated, "dispute_updated"),
+            (FraudEventType::DisputeWon, "dispute_won"),
+            (FraudEventType::DisputeLost, "dispute_lost"),
+        ];
+
+        for (decision, expected) in decision_cases {
+            assert_eq!(risk_decision_name(decision), expected);
+        }
+        for (level, expected) in level_cases {
+            assert_eq!(risk_level_name(level), expected);
+        }
+        for (mode, expected) in policy_cases {
+            assert_eq!(fraud_policy_mode_name(mode), expected);
+        }
+        for (event_type, expected) in event_cases {
+            assert_eq!(fraud_event_type_name(event_type), expected);
+        }
+    }
+
+    #[cfg(feature = "fraud")]
+    #[test]
+    fn fraud_telemetry_names_do_not_need_sensitive_context_values() {
+        let raw_token = "device-token-secret";
+        let token = crate::DeviceProviderToken::new(raw_token).expect("token should be valid");
+        let context = crate::RiskContext::new()
+            .with_device(crate::DeviceRiskContext::new().with_provider_token(token));
+
+        let rendered = format!(
+            "{}:{}:{}",
+            risk_decision_name(RiskDecision::Reject),
+            risk_level_name(RiskLevel::Critical),
+            context.device().is_some()
+        );
+
+        assert!(!rendered.contains(raw_token));
     }
 }

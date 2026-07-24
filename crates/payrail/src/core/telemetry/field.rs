@@ -22,3 +22,21 @@ pub const TELEMETRY_FIELD_HTTP_STATUS: &str = "payrail.http_status";
 pub const TELEMETRY_FIELD_RESULT: &str = "payrail.result";
 /// Normalized error kind field.
 pub const TELEMETRY_FIELD_ERROR_KIND: &str = "payrail.error_kind";
+/// Normalized fraud risk decision field.
+#[cfg(feature = "fraud")]
+pub const TELEMETRY_FIELD_RISK_DECISION: &str = "payrail.risk_decision";
+/// Normalized fraud risk level field.
+#[cfg(feature = "fraud")]
+pub const TELEMETRY_FIELD_RISK_LEVEL: &str = "payrail.risk_level";
+/// Fraud reason count field.
+#[cfg(feature = "fraud")]
+pub const TELEMETRY_FIELD_REASON_COUNT: &str = "payrail.reason_count";
+/// Fraud policy mode field.
+#[cfg(feature = "fraud")]
+pub const TELEMETRY_FIELD_POLICY_MODE: &str = "payrail.policy_mode";
+/// Provider I/O outcome field.
+#[cfg(feature = "fraud")]
+pub const TELEMETRY_FIELD_PROVIDER_IO: &str = "payrail.provider_io";
+/// Normalized fraud event type field.
+#[cfg(feature = "fraud")]
+pub const TELEMETRY_FIELD_FRAUD_EVENT_TYPE: &str = "payrail.fraud_event_type";
