@@ -41,7 +41,7 @@ impl StripeConnector {
     /// Returns an error when the HTTP client cannot be built.
     pub fn new(config: StripeConfig) -> Result<Self, PaymentError> {
         let client = reqwest::Client::builder()
-            .user_agent("payrail-rs/0.1 (+https://github.com/boniface/payrail)")
+            .user_agent("payrail-rs/0.2 (+https://github.com/boniface/payrail)")
             .timeout(config.request_timeout_value())
             .build()?;
         Ok(Self { config, client })
@@ -60,6 +60,8 @@ impl StripeConnector {
         response: reqwest::Response,
     ) -> Result<T, PaymentError> {
         let status = response.status();
+        #[cfg(not(feature = "telemetry"))]
+        let _ = operation;
         #[cfg(feature = "telemetry")]
         emit_provider_request_result(
             &PaymentProvider::Stripe,
@@ -497,6 +499,7 @@ fn string_field<'a>(object: &'a serde_json::Value, key: &str) -> Option<&'a str>
     object.get(key).and_then(serde_json::Value::as_str)
 }
 
+#[cfg(feature = "fraud")]
 fn metadata_string_field<'a>(object: &'a serde_json::Value, key: &str) -> Option<&'a str> {
     object
         .get("metadata")

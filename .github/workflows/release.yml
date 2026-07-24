@@ -77,6 +77,11 @@ jobs:
             exit 1
           fi
 
+          if ! grep -q "^## $RELEASE_VERSION - Released$" CHANGELOG.md; then
+            echo "CHANGELOG.md must contain a '## $RELEASE_VERSION - Released' section."
+            exit 1
+          fi
+
           if grep -q 'payrail-[a-z-]\+ = ' crates/payrail/Cargo.toml; then
             echo "The public payrail crate must not depend on internal payrail-* packages."
             exit 1
@@ -144,10 +149,32 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Build release notes from changelog
+        env:
+          RELEASE_SUMMARY: ${{ inputs.release_summary }}
+        run: |
+          awk -v version="$RELEASE_VERSION" '
+            $0 == "## " version " - Released" { in_section = 1; next }
+            /^## / && in_section { exit }
+            in_section { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/changelog-section.md"
+
+          if [ ! -s "$RUNNER_TEMP/changelog-section.md" ]; then
+            echo "No changelog section found for $RELEASE_VERSION."
+            exit 1
+          fi
+
+          {
+            if [ -n "$RELEASE_SUMMARY" ]; then
+              printf '%s\n\n' "$RELEASE_SUMMARY"
+            fi
+            printf '## Changelog\n'
+            cat "$RUNNER_TEMP/changelog-section.md"
+          } > "$RUNNER_TEMP/release-notes.md"
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}
           name: PayRail ${{ inputs.version }}
           target_commitish: ${{ github.sha }}
-          body: ${{ inputs.release_summary }}
-          generate_release_notes: true
+          body_path: ${{ runner.temp }}/release-notes.md
+          generate_release_notes: false

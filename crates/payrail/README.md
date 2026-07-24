@@ -30,7 +30,7 @@ aggregators, and crypto providers such as Circle, Coinbase, Bridge, and Binance.
 
 ```toml
 [dependencies]
-payrail = { version = "0.1", features = ["stripe", "paypal", "lipila"] }
+payrail = { version = "0.2", features = ["stripe", "paypal", "lipila"] }
 ```
 
 The default TLS backend is Rustls. Do not enable all providers unless the application uses them.
