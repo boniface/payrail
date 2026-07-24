@@ -2,6 +2,52 @@
 
 All notable changes to PayRail are documented here.
 
+## 0.2.0 - Released
+
+### Added
+
+- Added the `fraud` feature with provider-neutral fraud types, including risk scores, risk
+  decisions, risk levels, fraud reasons, risk context, fraud provider metadata, fraud events, and
+  risk-aware payment sessions.
+- Added `FraudPolicy` as a top-level re-export when `fraud` is enabled, with observe-only and
+  enforce modes for local deterministic risk checks.
+- Added risk-aware payment creation through `create_payment_with_risk`, returning a successful
+  risk-aware session with `payment() == None` when policy rejects before provider I/O.
+- Added `parse_fraud_webhook` support for normalized fraud and dispute visibility.
+- Added Stripe fraud/dispute webhook normalization for supported dispute events.
+- Added a mocked fraud provider harness and mocked tests for fraud provider behavior without
+  selecting a real external fraud vendor.
+- Added the `telemetry` feature with structured `tracing` spans and low-cardinality events across
+  payment, router, provider, webhook, and fraud policy paths.
+- Added the optional `otel` feature with OpenTelemetry API metric helpers for payment requests,
+  provider requests, provider latency, webhooks, fraud assessments, and fraud policy blocks.
+- Added an `opentelemetry_metrics` example that shows application-owned subscriber, SDK, and OTLP
+  exporter setup without making exporters normal library dependencies.
+
+### Changed
+
+- Payment, provider, webhook, and fraud diagnostics now use stable `payrail.*` field names and
+  normalized operation names.
+- OpenTelemetry SDK/exporter setup remains application-owned; the library only exposes optional API
+  helpers and never installs a global subscriber.
+- Release automation now publishes the reviewed `CHANGELOG.md` section as the GitHub release body.
+
+### Fixed
+
+- Strengthened telemetry tests so the workspace coverage gate stays above 90% on each staged
+  telemetry PR.
+- Kept telemetry attributes and metric labels low-cardinality by recording booleans, normalized
+  names, status categories, payload length, and error kinds instead of raw identifiers.
+
+### Security
+
+- Telemetry and fraud diagnostics explicitly avoid logging secrets, authorization headers, webhook
+  secrets, idempotency keys, customer email, phone numbers, raw webhook payloads, raw provider
+  responses, provider references, payment IDs, device tokens, raw risk context, card data, and bank
+  details.
+- Fraud policy rejection avoids exposing provider-specific fraud details to end users while keeping
+  normalized risk decisions available to application/admin telemetry.
+
 ## 0.1.7 - Released
 
 ### Fixed
