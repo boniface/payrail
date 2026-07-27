@@ -2,6 +2,16 @@
 
 All notable changes to PayRail are documented here.
 
+## 0.2.1 - Released
+
+### Fixed
+
+- Kept scheduled mutation analysis actionable by exercising every feature, uploading its report,
+  and warning on existing surviving mutants without hiding baseline, timeout, usage, or
+  infrastructure failures.
+- Pinned sanitizer-backed fuzz builds and smoke runs to the dynamically linked GNU Linux target so
+  repository or runner defaults cannot select the incompatible static-musl target.
+
 ## 0.2.0 - Released
 
 ### Added
