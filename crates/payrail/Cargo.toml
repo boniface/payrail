@@ -74,7 +74,7 @@ uuid.workspace = true
 [dev-dependencies]
 axum.workspace = true
 criterion.workspace = true
-opentelemetry-otlp = "0.32"
+opentelemetry-otlp = "0.33"
 opentelemetry_sdk = "0.32"
 secrecy.workspace = true
 tokio.workspace = true
